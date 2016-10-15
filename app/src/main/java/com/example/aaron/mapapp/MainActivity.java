@@ -1,5 +1,7 @@
 package com.example.aaron.mapapp;
 
+import android.content.Intent;
+import android.net.Uri;
 import android.os.Bundle;
 import android.support.design.widget.FloatingActionButton;
 import android.support.design.widget.Snackbar;
@@ -16,6 +18,8 @@ import android.os.Environment;
 
 import java.io.File;
 
+import android.view.ViewGroup;
+import android.widget.RelativeLayout;
 import org.mapsforge.core.model.LatLong;
 import org.mapsforge.map.android.graphics.AndroidGraphicFactory;
 import org.mapsforge.map.android.util.AndroidUtil;
@@ -36,35 +40,17 @@ public class MainActivity extends AppCompatActivity
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-//        super.onCreate(savedInstanceState);
-//        setContentView(R.layout.activity_main);
-//        Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
-//        setSupportActionBar(toolbar);
-//
-//        FloatingActionButton fab = (FloatingActionButton) findViewById(R.id.fab);
-//        fab.setOnClickListener(new View.OnClickListener() {
-//            @Override
-//            public void onClick(View view) {
-//                Snackbar.make(view, "Replace with your own action", Snackbar.LENGTH_LONG)
-//                        .setAction("Action", null).show();
-//            }
-//        });
-//
-//        DrawerLayout drawer = (DrawerLayout) findViewById(R.id.drawer_layout);
-//        ActionBarDrawerToggle toggle = new ActionBarDrawerToggle(
-//                this, drawer, toolbar, R.string.navigation_drawer_open, R.string.navigation_drawer_close);
-//        drawer.setDrawerListener(toggle);
-//        toggle.syncState();
-//
-//        NavigationView navigationView = (NavigationView) findViewById(R.id.nav_view);
-//        navigationView.setNavigationItemSelectedListener(this);
-
         super.onCreate(savedInstanceState);
+
+        //super.onCreate(savedInstanceState);
 
         AndroidGraphicFactory.createInstance(this.getApplication());
 
-        this.mapView = new MapView(this);
-        setContentView(this.mapView);
+
+       // setContentView(this.mapView);
+        setContentView(R.layout.activity_main);
+
+        this.mapView = (MapView) findViewById(R.id.mapView);
 
         this.mapView.setClickable(true);
         this.mapView.getMapScaleBar().setVisible(true);
@@ -72,23 +58,18 @@ public class MainActivity extends AppCompatActivity
         this.mapView.setZoomLevelMin((byte) 10);
         this.mapView.setZoomLevelMax((byte) 20);
 
-        // create a tile cache of suitable size
-        TileCache tileCache = AndroidUtil.createTileCache(this, "mapcache",
-                mapView.getModel().displayModel.getTileSize(), 1f,
-                this.mapView.getModel().frameBufferModel.getOverdrawFactor());
+        Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
+        setSupportActionBar(toolbar);
 
-        // tile renderer layer using internal render theme
-        MapDataStore mapDataStore = new MapFile(new File(Environment.getExternalStorageDirectory(), MAP_FILE));
-        TileRendererLayer tileRendererLayer = new TileRendererLayer(tileCache, mapDataStore,
-                this.mapView.getModel().mapViewPosition, AndroidGraphicFactory.INSTANCE);
-        tileRendererLayer.setXmlRenderTheme(InternalRenderTheme.OSMARENDER);
+        DrawerLayout drawer = (DrawerLayout) findViewById(R.id.drawer_layout);
+        ActionBarDrawerToggle toggle = new ActionBarDrawerToggle(
+                this, drawer, toolbar, R.string.navigation_drawer_open, R.string.navigation_drawer_close);
+        drawer.setDrawerListener(toggle);
+        toggle.syncState();
 
-        // only once a layer is associated with a mapView the rendering starts
-        this.mapView.getLayerManager().getLayers().add(tileRendererLayer);
-
-        this.mapView.setCenter(new LatLong(52.517037, 13.38886));
-        this.mapView.setZoomLevel((byte) 12);
-    }
+        NavigationView navigationView = (NavigationView) findViewById(R.id.nav_view);
+        navigationView.setNavigationItemSelectedListener(this);
+ }
 
     @Override
     public void onBackPressed() {
@@ -128,15 +109,16 @@ public class MainActivity extends AppCompatActivity
         // Handle navigation view item clicks here.
         int id = item.getItemId();
 
-        if (id == R.id.nav_camera) {
-            // Handle the camera action
-        } else if (id == R.id.nav_gallery) {
+        if (id == R.id.nav_import) {
+            // Handle the import action
+            Intent intent = new Intent()
+                    .setType("*/*")
+                    .setAction(Intent.ACTION_GET_CONTENT);
 
-        } else if (id == R.id.nav_slideshow) {
+            startActivityForResult(Intent.createChooser(intent, "Select a file"), 123);
 
-        } else if (id == R.id.nav_manage) {
-
-        } else if (id == R.id.nav_share) {
+        }
+        else if (id == R.id.nav_share) {
 
         } else if (id == R.id.nav_send) {
 
@@ -145,5 +127,34 @@ public class MainActivity extends AppCompatActivity
         DrawerLayout drawer = (DrawerLayout) findViewById(R.id.drawer_layout);
         drawer.closeDrawer(GravityCompat.START);
         return true;
+    }
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if(requestCode==123 && resultCode==RESULT_OK) {
+            Uri selectedFile = data.getData(); //The uri with the location of the file
+            RenderMap(selectedFile.getPath());
+        }
+    }
+
+    public void RenderMap(String path)
+    {
+        // create a tile cache of suitable size
+        TileCache tileCache = AndroidUtil.createTileCache(this, "mapcache",
+                mapView.getModel().displayModel.getTileSize(), 1f,
+                this.mapView.getModel().frameBufferModel.getOverdrawFactor());
+
+        // tile renderer layer using internal render theme
+        MapDataStore mapDataStore = new MapFile(new File(path));
+        TileRendererLayer tileRendererLayer = new TileRendererLayer(tileCache, mapDataStore,
+                this.mapView.getModel().mapViewPosition, AndroidGraphicFactory.INSTANCE);
+        tileRendererLayer.setXmlRenderTheme(InternalRenderTheme.OSMARENDER);
+
+        // only once a layer is associated with a mapView the rendering starts
+        this.mapView.getLayerManager().getLayers().add(tileRendererLayer);
+
+        this.mapView.setCenter(mapDataStore.startPosition());
+
+        this.mapView.setZoomLevel((byte) 20);
     }
 }

@@ -13,8 +13,8 @@
         tools:showIn="@layout/app_bar_main"
         tools:context="com.example.aaron.mapapp.MainActivity">
 
-    <TextView
-            android:text="Hello World!"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"/>
+    <org.mapsforge.map.android.view.MapView
+            android:id="@+id/mapView"
+            android:layout_width="fill_parent"
+            android:layout_height="fill_parent" />
 </RelativeLayout>
