@@ -17,18 +17,26 @@ import android.view.MenuItem;
 import android.os.Environment;
 
 import java.io.File;
+import java.util.List;
 
 import android.view.ViewGroup;
 import android.widget.RelativeLayout;
+import org.mapsforge.core.graphics.Color;
+import org.mapsforge.core.graphics.Paint;
+import org.mapsforge.core.graphics.Style;
 import org.mapsforge.core.model.LatLong;
 import org.mapsforge.map.android.graphics.AndroidGraphicFactory;
 import org.mapsforge.map.android.util.AndroidUtil;
 import org.mapsforge.map.android.view.MapView;
+import org.mapsforge.map.layer.Layer;
+import org.mapsforge.map.layer.Layers;
 import org.mapsforge.map.layer.cache.TileCache;
+import org.mapsforge.map.layer.overlay.Polyline;
 import org.mapsforge.map.layer.renderer.TileRendererLayer;
 import org.mapsforge.map.datastore.MapDataStore;
 import org.mapsforge.map.reader.MapFile;
 import org.mapsforge.map.rendertheme.InternalRenderTheme;
+import org.mapsforge.core.util.*;
 
 
 public class MainActivity extends AppCompatActivity
@@ -134,6 +142,7 @@ public class MainActivity extends AppCompatActivity
         if(requestCode==123 && resultCode==RESULT_OK) {
             Uri selectedFile = data.getData(); //The uri with the location of the file
             RenderMap(selectedFile.getPath());
+            AddLayer(mapView.getLayerManager().getLayers());
         }
     }
 
@@ -155,6 +164,25 @@ public class MainActivity extends AppCompatActivity
 
         this.mapView.setCenter(mapDataStore.startPosition());
 
-        this.mapView.setZoomLevel((byte) 20);
+        this.mapView.setZoomLevel((byte) 24);
+    }
+
+    public void AddLayer(Layers layer)
+    {
+        LatLong latLong1 =  mapView.getModel().mapViewPosition.getCenter();
+        LatLong latLong2 = new LatLong(51.14, 40.59);
+        LatLong latLong3 = new LatLong(52.94, 40.59);
+
+        Paint paint = AndroidGraphicFactory.INSTANCE.createPaint();
+        paint.setColor(Color.RED);
+        paint.setStrokeWidth(20);
+        paint.setStyle(Style.STROKE);
+
+        Polyline polyline = new Polyline(paint, AndroidGraphicFactory.INSTANCE);
+        List<LatLong> latLongs = polyline.getLatLongs();
+        latLongs.add(latLong1);
+        latLongs.add(latLong2);
+        latLongs.add(latLong3);
+        layer.add(polyline);
     }
 }
