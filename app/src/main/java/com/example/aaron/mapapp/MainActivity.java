@@ -1,6 +1,9 @@
 package com.example.aaron.mapapp;
 
 import android.content.Intent;
+import android.graphics.Canvas;
+import android.graphics.drawable.BitmapDrawable;
+import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.os.Bundle;
 import android.support.design.widget.FloatingActionButton;
@@ -14,17 +17,22 @@ import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.view.View.MeasureSpec;
 import android.os.Environment;
 
 import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.util.List;
 
 import android.view.ViewGroup;
 import android.widget.RelativeLayout;
+import org.mapsforge.core.graphics.Bitmap;
 import org.mapsforge.core.graphics.Color;
 import org.mapsforge.core.graphics.Paint;
 import org.mapsforge.core.graphics.Style;
 import org.mapsforge.core.model.LatLong;
+import org.mapsforge.map.android.graphics.AndroidBitmap;
 import org.mapsforge.map.android.graphics.AndroidGraphicFactory;
 import org.mapsforge.map.android.util.AndroidUtil;
 import org.mapsforge.map.android.view.MapView;
@@ -165,10 +173,12 @@ public class MainActivity extends AppCompatActivity
         this.mapView.setCenter(mapDataStore.startPosition());
 
         this.mapView.setZoomLevel((byte) 24);
+
     }
 
     public void AddLayer(Layers layer)
     {
+
         LatLong latLong1 =  mapView.getModel().mapViewPosition.getCenter();
         LatLong latLong2 = new LatLong(51.14, 40.59);
         LatLong latLong3 = new LatLong(52.94, 40.59);
@@ -185,4 +195,19 @@ public class MainActivity extends AppCompatActivity
         latLongs.add(latLong3);
         layer.add(polyline);
     }
+
+    public void CaptureImage()
+    {
+        android.graphics.Bitmap b = android.graphics.Bitmap.createBitmap(mapView.getWidth(), mapView.getHeight(),   android.graphics.Bitmap.Config.ARGB_8888);
+        Canvas c = new Canvas(b);
+        mapView.draw(c);
+
+        try {
+            b.compress(android.graphics.Bitmap.CompressFormat.JPEG, 95, new FileOutputStream("/storage/emulated/0/image10.jpg"));
+            // b.compress(new FileOutputStream("/storage/emulated/0/image0.jpg"));
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
 }
