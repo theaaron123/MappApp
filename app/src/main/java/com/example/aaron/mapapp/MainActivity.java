@@ -2,13 +2,8 @@ package com.example.aaron.mapapp;
 
 import android.content.Intent;
 import android.graphics.Canvas;
-import android.graphics.drawable.BitmapDrawable;
-import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.os.Bundle;
-import android.support.design.widget.FloatingActionButton;
-import android.support.design.widget.Snackbar;
-import android.view.View;
 import android.support.design.widget.NavigationView;
 import android.support.v4.view.GravityCompat;
 import android.support.v4.widget.DrawerLayout;
@@ -17,57 +12,40 @@ import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
 import android.view.Menu;
 import android.view.MenuItem;
-import android.view.View.MeasureSpec;
-import android.os.Environment;
 
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.List;
 
-import android.view.ViewGroup;
-import android.widget.RelativeLayout;
-import org.mapsforge.core.graphics.Bitmap;
 import org.mapsforge.core.graphics.Color;
 import org.mapsforge.core.graphics.Paint;
 import org.mapsforge.core.graphics.Style;
 import org.mapsforge.core.model.LatLong;
-import org.mapsforge.map.android.graphics.AndroidBitmap;
 import org.mapsforge.map.android.graphics.AndroidGraphicFactory;
 import org.mapsforge.map.android.util.AndroidUtil;
 import org.mapsforge.map.android.view.MapView;
-import org.mapsforge.map.layer.Layer;
 import org.mapsforge.map.layer.Layers;
 import org.mapsforge.map.layer.cache.TileCache;
+import org.mapsforge.map.layer.overlay.Marker;
 import org.mapsforge.map.layer.overlay.Polyline;
 import org.mapsforge.map.layer.renderer.TileRendererLayer;
 import org.mapsforge.map.datastore.MapDataStore;
 import org.mapsforge.map.reader.MapFile;
 import org.mapsforge.map.rendertheme.InternalRenderTheme;
-import org.mapsforge.core.util.*;
-
 
 public class MainActivity extends AppCompatActivity
         implements NavigationView.OnNavigationItemSelectedListener {
-
-    private static final String MAP_FILE = "berlin.map";
 
     private MapView mapView;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-
-        //super.onCreate(savedInstanceState);
-
         AndroidGraphicFactory.createInstance(this.getApplication());
-
-
-       // setContentView(this.mapView);
         setContentView(R.layout.activity_main);
 
         this.mapView = (MapView) findViewById(R.id.mapView);
-
         this.mapView.setClickable(true);
         this.mapView.getMapScaleBar().setVisible(true);
         this.mapView.setBuiltInZoomControls(true);
@@ -85,7 +63,7 @@ public class MainActivity extends AppCompatActivity
 
         NavigationView navigationView = (NavigationView) findViewById(R.id.nav_view);
         navigationView.setNavigationItemSelectedListener(this);
- }
+    }
 
     @Override
     public void onBackPressed() {
@@ -101,6 +79,7 @@ public class MainActivity extends AppCompatActivity
     public boolean onCreateOptionsMenu(Menu menu) {
         // Inflate the menu; this adds items to the action bar if it is present.
         getMenuInflater().inflate(R.menu.main, menu);
+
         return true;
     }
 
@@ -115,7 +94,6 @@ public class MainActivity extends AppCompatActivity
         if (id == R.id.action_settings) {
             return true;
         }
-
         return super.onOptionsItemSelected(item);
     }
 
@@ -133,8 +111,7 @@ public class MainActivity extends AppCompatActivity
 
             startActivityForResult(Intent.createChooser(intent, "Select a file"), 123);
 
-        }
-        else if (id == R.id.nav_share) {
+        } else if (id == R.id.nav_share) {
 
         } else if (id == R.id.nav_send) {
 
@@ -144,18 +121,21 @@ public class MainActivity extends AppCompatActivity
         drawer.closeDrawer(GravityCompat.START);
         return true;
     }
+
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if(requestCode==123 && resultCode==RESULT_OK) {
+        if (requestCode == 123 && resultCode == RESULT_OK) {
             Uri selectedFile = data.getData(); //The uri with the location of the file
-            RenderMap(selectedFile.getPath());
-            AddLayer(mapView.getLayerManager().getLayers());
+            renderMap(selectedFile.getPath());
+            //drawPolyline(mapView.getLayerManager().getLayers());
+            //  ImageGatherer imageGatherer = new ImageGatherer(this.mapView);
+            // imageGatherer.run();
         }
     }
 
-    public void RenderMap(String path)
-    {
+    // move to own mapsforge to own activity class
+    public void renderMap(String path) {
         // create a tile cache of suitable size
         TileCache tileCache = AndroidUtil.createTileCache(this, "mapcache",
                 mapView.getModel().displayModel.getTileSize(), 1f,
@@ -164,25 +144,36 @@ public class MainActivity extends AppCompatActivity
         // tile renderer layer using internal render theme
         MapDataStore mapDataStore = new MapFile(new File(path));
         TileRendererLayer tileRendererLayer = new TileRendererLayer(tileCache, mapDataStore,
-                this.mapView.getModel().mapViewPosition, AndroidGraphicFactory.INSTANCE);
+                this.mapView.getModel().mapViewPosition, AndroidGraphicFactory.INSTANCE) {
+            @Override
+            public boolean onTap(LatLong tapLatLong, org.mapsforge.core.model.Point layerXY, org.mapsforge.core.model.Point tapXY) {
+                if (mapView.getLayerManager().getLayers().size() > 2) {
+                    for (int i = 1; i < mapView.getLayerManager().getLayers().size(); i++) {
+                        mapView.getLayerManager().getLayers().remove(i);
+                    }
+                    addMarker(mapView.getLayerManager().getLayers(), tapLatLong);
+
+                    LatLong[] points = new LatLong[2];
+                    points[0] = mapView.getLayerManager().getLayers().get(1).getPosition();
+                    points[1] = mapView.getLayerManager().getLayers().get(2).getPosition();
+                    drawPolyline(mapView.getLayerManager().getLayers(), points);
+                } else {
+                    addMarker(mapView.getLayerManager().getLayers(), tapLatLong);
+                }
+                return super.onTap(tapLatLong, layerXY, tapXY);
+            }
+        };
         tileRendererLayer.setXmlRenderTheme(InternalRenderTheme.OSMARENDER);
 
         // only once a layer is associated with a mapView the rendering starts
         this.mapView.getLayerManager().getLayers().add(tileRendererLayer);
-
         this.mapView.setCenter(mapDataStore.startPosition());
-
-        this.mapView.setZoomLevel((byte) 24);
+        this.mapView.setZoomLevel((byte) 15);
 
     }
 
-    public void AddLayer(Layers layer)
-    {
-
-        LatLong latLong1 =  mapView.getModel().mapViewPosition.getCenter();
-        LatLong latLong2 = new LatLong(51.14, 40.59);
-        LatLong latLong3 = new LatLong(52.94, 40.59);
-
+    // move to mapview class
+    public void drawPolyline(Layers layer, LatLong[] points) {
         Paint paint = AndroidGraphicFactory.INSTANCE.createPaint();
         paint.setColor(Color.RED);
         paint.setStrokeWidth(20);
@@ -190,23 +181,47 @@ public class MainActivity extends AppCompatActivity
 
         Polyline polyline = new Polyline(paint, AndroidGraphicFactory.INSTANCE);
         List<LatLong> latLongs = polyline.getLatLongs();
-        latLongs.add(latLong1);
-        latLongs.add(latLong2);
-        latLongs.add(latLong3);
+        for (LatLong latLong : points) {
+            if (latLong != null) {
+                latLongs.add(latLong);
+            }
+        }
         layer.add(polyline);
     }
 
-    public void CaptureImage()
-    {
-        android.graphics.Bitmap b = android.graphics.Bitmap.createBitmap(mapView.getWidth(), mapView.getHeight(),   android.graphics.Bitmap.Config.ARGB_8888);
+    // move to class
+    public void captureImage(int index) {
+        android.graphics.Bitmap b = android.graphics.Bitmap.createBitmap(mapView.getWidth(), mapView.getHeight(), android.graphics.Bitmap.Config.ARGB_8888);
         Canvas c = new Canvas(b);
         mapView.draw(c);
 
         try {
-            b.compress(android.graphics.Bitmap.CompressFormat.JPEG, 95, new FileOutputStream("/storage/emulated/0/image10.jpg"));
-            // b.compress(new FileOutputStream("/storage/emulated/0/image0.jpg"));
+            b.compress(android.graphics.Bitmap.CompressFormat.JPEG, 95, new FileOutputStream("/storage/emulated/0/AcquiredMapData/image" + index + ".jpg"));
         } catch (IOException e) {
             e.printStackTrace();
+        }
+    }
+
+    public void gatherImages() {
+        LatLong origPos = this.mapView.getModel().mapViewPosition.getCenter();
+
+        for (int i = 0; i < 1500; i++) {
+            origPos = new LatLong(origPos.latitude + 0.1, origPos.longitude + 0.1);
+            this.mapView.setCenter(origPos);
+            captureImage(i);
+        }
+    }
+
+    public void addMarker(Layers layers, LatLong position) {
+        TappableMarker positionmarker = new TappableMarker(R.drawable.ic_menu_mylocation, position);
+        mapView.getLayerManager().getLayers().add(positionmarker);
+    }
+
+    private class TappableMarker extends Marker {
+        public TappableMarker(int icon, LatLong localLatLong) {
+            super(localLatLong, AndroidGraphicFactory.convertToBitmap(MainActivity.this.getApplicationContext().getResources().getDrawable(icon)),
+                    (AndroidGraphicFactory.convertToBitmap(MainActivity.this.getApplicationContext().getResources().getDrawable(icon)).getWidth()) / 2,
+                    -1 * (AndroidGraphicFactory.convertToBitmap(MainActivity.this.getApplicationContext().getResources().getDrawable(icon)).getHeight()) / 2);
         }
     }
 
