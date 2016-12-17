@@ -3,7 +3,6 @@ package com.example.aaron.mapapp;
 import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentManager;
 import android.content.Intent;
-import android.graphics.Canvas;
 import android.net.Uri;
 import android.os.Bundle;
 import android.support.design.widget.NavigationView;
@@ -15,27 +14,12 @@ import android.support.v7.widget.Toolbar;
 import android.view.Menu;
 import android.view.MenuItem;
 
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.util.List;
-
-import org.mapsforge.core.graphics.Color;
-import org.mapsforge.core.graphics.Paint;
-import org.mapsforge.core.graphics.Style;
-import org.mapsforge.core.model.LatLong;
-import org.mapsforge.map.android.graphics.AndroidGraphicFactory;
-import org.mapsforge.map.android.view.MapView;
-
 public class MainActivity extends AppCompatActivity
         implements NavigationView.OnNavigationItemSelectedListener {
-
-    private MapView mapView;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        AndroidGraphicFactory.createInstance(this.getApplication());
         setContentView(R.layout.activity_main);
 
         Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
@@ -130,29 +114,4 @@ public class MainActivity extends AppCompatActivity
             fragment.onActivityResult(requestCode, resultCode, data);
         }
     }
-
-
-    // move to class
-    public void captureImage(int index) {
-        android.graphics.Bitmap b = android.graphics.Bitmap.createBitmap(mapView.getWidth(), mapView.getHeight(), android.graphics.Bitmap.Config.ARGB_8888);
-        Canvas c = new Canvas(b);
-        mapView.draw(c);
-
-        try {
-            b.compress(android.graphics.Bitmap.CompressFormat.JPEG, 95, new FileOutputStream("/storage/emulated/0/AcquiredMapData/image" + index + ".jpg"));
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
-
-    public void gatherImages() {
-        LatLong origPos = this.mapView.getModel().mapViewPosition.getCenter();
-
-        for (int i = 0; i < 1500; i++) {
-            origPos = new LatLong(origPos.latitude + 0.1, origPos.longitude + 0.1);
-            this.mapView.setCenter(origPos);
-            captureImage(i);
-        }
-    }
-
 }
