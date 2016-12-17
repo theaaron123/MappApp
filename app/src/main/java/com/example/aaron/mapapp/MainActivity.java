@@ -1,5 +1,7 @@
 package com.example.aaron.mapapp;
 
+import android.support.v4.app.Fragment;
+import android.support.v4.app.FragmentManager;
 import android.content.Intent;
 import android.graphics.Canvas;
 import android.net.Uri;
@@ -23,16 +25,7 @@ import org.mapsforge.core.graphics.Paint;
 import org.mapsforge.core.graphics.Style;
 import org.mapsforge.core.model.LatLong;
 import org.mapsforge.map.android.graphics.AndroidGraphicFactory;
-import org.mapsforge.map.android.util.AndroidUtil;
 import org.mapsforge.map.android.view.MapView;
-import org.mapsforge.map.layer.Layers;
-import org.mapsforge.map.layer.cache.TileCache;
-import org.mapsforge.map.layer.overlay.Marker;
-import org.mapsforge.map.layer.overlay.Polyline;
-import org.mapsforge.map.layer.renderer.TileRendererLayer;
-import org.mapsforge.map.datastore.MapDataStore;
-import org.mapsforge.map.reader.MapFile;
-import org.mapsforge.map.rendertheme.InternalRenderTheme;
 
 public class MainActivity extends AppCompatActivity
         implements NavigationView.OnNavigationItemSelectedListener {
@@ -44,13 +37,6 @@ public class MainActivity extends AppCompatActivity
         super.onCreate(savedInstanceState);
         AndroidGraphicFactory.createInstance(this.getApplication());
         setContentView(R.layout.activity_main);
-
-        this.mapView = (MapView) findViewById(R.id.mapView);
-        this.mapView.setClickable(true);
-        this.mapView.getMapScaleBar().setVisible(true);
-        this.mapView.setBuiltInZoomControls(true);
-        this.mapView.setZoomLevelMin((byte) 10);
-        this.mapView.setZoomLevelMax((byte) 20);
 
         Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
@@ -127,67 +113,24 @@ public class MainActivity extends AppCompatActivity
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == 123 && resultCode == RESULT_OK) {
             Uri selectedFile = data.getData(); //The uri with the location of the file
-            renderMap(selectedFile.getPath());
-            //drawPolyline(mapView.getLayerManager().getLayers());
-            //  ImageGatherer imageGatherer = new ImageGatherer(this.mapView);
-            // imageGatherer.run();
+           // renderMap(selectedFile.getPath());
+
+            FragmentManager fragmentManager = getSupportFragmentManager();
+            Fragment fragment = fragmentManager.findFragmentById(R.id.fragment_container);
+            Bundle bundle = new Bundle();
+            bundle.putString("PATH", selectedFile.getPath());
+
+            if (fragment == null) {
+                fragment = new MapsforgeFragment();
+                fragment.setArguments(bundle);
+                fragmentManager.beginTransaction()
+                        .add(R.id.fragment_container, fragment)
+                        .commit();
+            }
+            fragment.onActivityResult(requestCode, resultCode, data);
         }
     }
 
-    // move to own mapsforge to own activity class
-    public void renderMap(String path) {
-        // create a tile cache of suitable size
-        TileCache tileCache = AndroidUtil.createTileCache(this, "mapcache",
-                mapView.getModel().displayModel.getTileSize(), 1f,
-                this.mapView.getModel().frameBufferModel.getOverdrawFactor());
-
-        // tile renderer layer using internal render theme
-        MapDataStore mapDataStore = new MapFile(new File(path));
-        TileRendererLayer tileRendererLayer = new TileRendererLayer(tileCache, mapDataStore,
-                this.mapView.getModel().mapViewPosition, AndroidGraphicFactory.INSTANCE) {
-            @Override
-            public boolean onTap(LatLong tapLatLong, org.mapsforge.core.model.Point layerXY, org.mapsforge.core.model.Point tapXY) {
-                if (mapView.getLayerManager().getLayers().size() > 2) {
-                    for (int i = 1; i < mapView.getLayerManager().getLayers().size(); i++) {
-                        mapView.getLayerManager().getLayers().remove(i);
-                    }
-                    addMarker(mapView.getLayerManager().getLayers(), tapLatLong);
-
-                    LatLong[] points = new LatLong[2];
-                    points[0] = mapView.getLayerManager().getLayers().get(1).getPosition();
-                    points[1] = mapView.getLayerManager().getLayers().get(2).getPosition();
-                    drawPolyline(mapView.getLayerManager().getLayers(), points);
-                } else {
-                    addMarker(mapView.getLayerManager().getLayers(), tapLatLong);
-                }
-                return super.onTap(tapLatLong, layerXY, tapXY);
-            }
-        };
-        tileRendererLayer.setXmlRenderTheme(InternalRenderTheme.OSMARENDER);
-
-        // only once a layer is associated with a mapView the rendering starts
-        this.mapView.getLayerManager().getLayers().add(tileRendererLayer);
-        this.mapView.setCenter(mapDataStore.startPosition());
-        this.mapView.setZoomLevel((byte) 15);
-
-    }
-
-    // move to mapview class
-    public void drawPolyline(Layers layer, LatLong[] points) {
-        Paint paint = AndroidGraphicFactory.INSTANCE.createPaint();
-        paint.setColor(Color.RED);
-        paint.setStrokeWidth(20);
-        paint.setStyle(Style.STROKE);
-
-        Polyline polyline = new Polyline(paint, AndroidGraphicFactory.INSTANCE);
-        List<LatLong> latLongs = polyline.getLatLongs();
-        for (LatLong latLong : points) {
-            if (latLong != null) {
-                latLongs.add(latLong);
-            }
-        }
-        layer.add(polyline);
-    }
 
     // move to class
     public void captureImage(int index) {
@@ -209,19 +152,6 @@ public class MainActivity extends AppCompatActivity
             origPos = new LatLong(origPos.latitude + 0.1, origPos.longitude + 0.1);
             this.mapView.setCenter(origPos);
             captureImage(i);
-        }
-    }
-
-    public void addMarker(Layers layers, LatLong position) {
-        TappableMarker positionmarker = new TappableMarker(R.drawable.ic_menu_mylocation, position);
-        mapView.getLayerManager().getLayers().add(positionmarker);
-    }
-
-    private class TappableMarker extends Marker {
-        public TappableMarker(int icon, LatLong localLatLong) {
-            super(localLatLong, AndroidGraphicFactory.convertToBitmap(MainActivity.this.getApplicationContext().getResources().getDrawable(icon)),
-                    (AndroidGraphicFactory.convertToBitmap(MainActivity.this.getApplicationContext().getResources().getDrawable(icon)).getWidth()) / 2,
-                    -1 * (AndroidGraphicFactory.convertToBitmap(MainActivity.this.getApplicationContext().getResources().getDrawable(icon)).getHeight()) / 2);
         }
     }
 
