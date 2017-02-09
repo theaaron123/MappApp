@@ -65,39 +65,12 @@ public class MapsforgeFragment extends Fragment {
     Uri selectedFile;
     private GraphHopper hopper;
     private OnFragmentInteractionListener mListener;
-    private Layer pathLayer;
     private LatLong start;
     private  LatLong end;
+    private volatile boolean shortestPathRunning = false;
 
     public MapsforgeFragment() {
         // Required empty public constructor
-    }
-    protected boolean onLongPress(LatLong p) {
-        if (shortestPathRunning) {
-            logUser("Calculation still in progress");
-            return false;
-        }
-
-        if (start != null && end == null) {
-            end = p;
-            shortestPathRunning = true;
-            //itemizedLayer.addItem(createMarkerItem(p, R.drawable.marker_icon_red));
-            //addMarker();
-            //mapView.map().updateMap(true);
-
-            calcPath(start.getLatitude(), start.getLongitude(), end.getLatitude(),
-                    end.getLongitude());
-        } else {
-            start = p;
-            end = null;
-            // remove routing layers
-           // mapView.map().layers().remove(pathLayer);
-            //itemizedLayer.removeAllItems();
-
-           // itemizedLayer.addItem(createMarkerItem(start, R.drawable.marker_icon_green));
-           // mapView.map().updateMap(true);
-        }
-        return true;
     }
 
     @Override
@@ -178,7 +151,7 @@ public class MapsforgeFragment extends Fragment {
                 mapView.getModel().displayModel.getTileSize(), 1f,
                 this.mapView.getModel().frameBufferModel.getOverdrawFactor());
 
-        // tile renderer layer using internal render theme
+        // tile renderer layer using specified render theme
         MapDataStore mapDataStore = new MapFile(new File(path));
         TileRendererLayer tileRendererLayer = new TileRendererLayer(tileCache, mapDataStore,
                 this.mapView.getModel().mapViewPosition, AndroidGraphicFactory.INSTANCE) {
@@ -210,6 +183,7 @@ public class MapsforgeFragment extends Fragment {
                     shortestPathRunning = true;
                     //itemizedLayer.addItem(createMarkerItem(p, R.drawable.marker_icon_red));
                     //addMarker();
+                    // TODO add markers
                     //mapView.map().updateMap(true);
 
                     calcPath(start.getLatitude(), start.getLongitude(), end.getLatitude(),
@@ -220,7 +194,7 @@ public class MapsforgeFragment extends Fragment {
                     // remove routing layers
                     // mapView.map().layers().remove(pathLayer);
                     //itemizedLayer.removeAllItems();
-
+                    // TODO remove routing layer
                     // itemizedLayer.addItem(createMarkerItem(start, R.drawable.marker_icon_green));
                     // mapView.map().updateMap(true);
                 }
@@ -228,12 +202,11 @@ public class MapsforgeFragment extends Fragment {
             }
         };
 
-
-
         XmlRenderTheme renderTheme = null;
 
         try {
             renderTheme = new ExternalRenderTheme("Elevate.xml");
+            // TODO try pull from server?
         } catch (FileNotFoundException e) {
             e.printStackTrace();
         }
@@ -247,6 +220,7 @@ public class MapsforgeFragment extends Fragment {
         this.mapView.getLayerManager().getLayers().add(tileRendererLayer);
         this.mapView.setCenter(mapDataStore.startPosition());
         this.mapView.setZoomLevel((byte) 15);
+        // storage of routing information
         loadGraphStorage();
     }
 
@@ -266,22 +240,6 @@ public class MapsforgeFragment extends Fragment {
         layer.add(polyline);
     }
 
-    public Polyline createPathPolyline(LatLong[] points) {
-        Paint paint = AndroidGraphicFactory.INSTANCE.createPaint();
-        paint.setColor(Color.RED);
-        paint.setStrokeWidth(20);
-        paint.setStyle(Style.STROKE);
-
-        Polyline polyline = new Polyline(paint, AndroidGraphicFactory.INSTANCE);
-        List<LatLong> latLongs = polyline.getLatLongs();
-        for (LatLong latLong : points) {
-            if (latLong != null) {
-                latLongs.add(latLong);
-            }
-        }
-        return polyline;
-    }
-
     public void addMarker(Layers layers, LatLong position) {
         MapsforgeFragment.TappableMarker tappableMarker = new MapsforgeFragment.TappableMarker(R.drawable.ic_menu_mylocation, position);
         mapView.getLayerManager().getLayers().add(tappableMarker);
@@ -294,8 +252,6 @@ public class MapsforgeFragment extends Fragment {
                     -1 * (AndroidGraphicFactory.convertToBitmap(MapsforgeFragment.this.getResources().getDrawable(icon)).getHeight()) / 2);
         }
     }
-
-    private volatile boolean shortestPathRunning = false;
 
     public void calcPath(final double fromLat, final double fromLon,
                          final double toLat, final double toLon) {
@@ -344,6 +300,7 @@ public class MapsforgeFragment extends Fragment {
         new GHAsyncTask<Void, Void, Path>() {
             protected Path saveDoInBackground(Void... v) throws Exception {
                 GraphHopper tmpHopp = new GraphHopper().forMobile();
+                // TODO remove hardcoded path
                 tmpHopp.load(new File("/storage/emulated/0/Download/graphhopper/maps/sweden").getAbsolutePath() + "-gh");
                 log("found graph " + tmpHopp.getGraphHopperStorage().toString() + ", nodes:" + tmpHopp.getGraphHopperStorage().getNodes());
                 hopper = tmpHopp;
