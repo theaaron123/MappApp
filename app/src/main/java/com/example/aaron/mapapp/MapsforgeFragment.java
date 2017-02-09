@@ -6,13 +6,12 @@ import android.graphics.Path;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
+import android.os.Environment;
 import android.support.v4.app.Fragment;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.Button;
-import android.widget.Spinner;
 import android.widget.Toast;
 import org.mapsforge.core.graphics.Color;
 import org.mapsforge.core.graphics.Paint;
@@ -23,7 +22,6 @@ import org.mapsforge.map.android.graphics.AndroidGraphicFactory;
 import org.mapsforge.map.android.util.AndroidUtil;
 import org.mapsforge.map.android.view.MapView;
 import org.mapsforge.map.datastore.MapDataStore;
-import org.mapsforge.map.layer.Layer;
 import org.mapsforge.map.layer.Layers;
 import org.mapsforge.map.layer.cache.TileCache;
 import org.mapsforge.map.layer.overlay.Marker;
@@ -39,17 +37,13 @@ import com.graphhopper.GHResponse;
 import com.graphhopper.GraphHopper;
 import com.graphhopper.PathWrapper;
 import com.graphhopper.util.Constants;
-import com.graphhopper.util.Helper;
 import com.graphhopper.util.Parameters.Algorithms;
 import com.graphhopper.util.Parameters.Routing;
-import com.graphhopper.util.PointList;
-import com.graphhopper.util.ProgressListener;
 import com.graphhopper.util.StopWatch;
 
 
 import java.io.File;
 import java.io.FileNotFoundException;
-import java.util.ArrayList;
 import java.util.List;
 
 import static android.app.Activity.RESULT_OK;
@@ -67,6 +61,7 @@ public class MapsforgeFragment extends Fragment {
     private OnFragmentInteractionListener mListener;
     private LatLong start;
     private  LatLong end;
+    private File mapsDir;
     private volatile boolean shortestPathRunning = false;
 
     public MapsforgeFragment() {
@@ -77,6 +72,8 @@ public class MapsforgeFragment extends Fragment {
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         AndroidGraphicFactory.createInstance(getActivity().getApplication());
+        mapsDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
+                "/graphhopper/maps/");
     }
 
     @Override
@@ -174,7 +171,7 @@ public class MapsforgeFragment extends Fragment {
             }
             public boolean onLongPress(LatLong tapLatLong, Point layerXY, Point tapXY) {
                 if (shortestPathRunning) {
-                    logUser("Calculation still in progress");
+                    logDisplayToUser("Calculation still in progress");
                     return false;
                 }
 
@@ -277,26 +274,23 @@ public class MapsforgeFragment extends Fragment {
                             + toLon + " found path with distance:" + resp.getDistance()
                             / 1000f + ", nodes:" + resp.getPoints().getSize() + ", time:"
                             + time + " " + resp.getDebugInfo());
-                    logUser("the route is " + (int) (resp.getDistance() / 100) / 10f
-                            + "km long, time:" + resp.getTime() / 60000f + "min, debug:" + time);
+                    logDisplayToUser("the route is " + (int) (resp.getDistance() / 160) / 10f +" miles long, time:" + resp.getTime() / 60000f + "min, debug:" + time);
                     LatLong[] points = new LatLong[resp.getPoints().size()];
 
                     for (int i = 0; i < resp.getPoints().size(); i++) {
 
                         points[i] = new LatLong(resp.getPoints().getLatitude(i), resp.getPoints().getLongitude(i));
                     }
-
                     drawPolyline(mapView.getLayerManager().getLayers(), points);
-
                 } else {
-                    logUser("Error:" + resp.getErrors());
+                    logDisplayToUser("Error:" + resp.getErrors());
                 }
                 shortestPathRunning = false;
             }
         }.execute();
     }
     private void loadGraphStorage() {
-        logUser("loading graph (" + Constants.VERSION + ") ... ");
+        logDisplayToUser("loading graph (" + Constants.VERSION + ") ... ");
         new GHAsyncTask<Void, Void, Path>() {
             protected Path saveDoInBackground(Void... v) throws Exception {
                 GraphHopper tmpHopp = new GraphHopper().forMobile();
@@ -309,20 +303,20 @@ public class MapsforgeFragment extends Fragment {
 
             protected void onPostExecute(Path o) {
                 if (hasError()) {
-                    logUser("An error happened while creating graph:"
+                    logDisplayToUser("An error happened while creating graph:"
                             + getErrorMessage());
                 } else {
-                    logUser("Finished loading graph. Press long to define where to start and end the route.");
+                    logDisplayToUser("Finished loading graph. Press long to define where to start and end the route.");
                 }
             }
         }.execute();
     }
-    private void log(String str) {
-        Log.i("GH", str);
+    private void log(String logText) {
+        Log.i("GH", logText);
     }
-    private void logUser(String str) {
-        log(str);
-        Toast.makeText(this.getContext(), str, Toast.LENGTH_LONG).show();
+    private void logDisplayToUser(String logText) {
+        log(logText);
+        Toast.makeText(this.getContext(), logText, Toast.LENGTH_LONG).show();
     }
 
 }
