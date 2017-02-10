@@ -101,7 +101,6 @@ public class MapsforgeFragment extends Fragment {
         }
     }
 
-    // TODO: Rename method, update argument and hook method into UI event
     public void onButtonPressed(Uri uri) {
         if (mListener != null) {
             mListener.onFragmentInteraction(uri);
@@ -128,14 +127,6 @@ public class MapsforgeFragment extends Fragment {
     }
 
     /**
-     * This interface must be implemented by activities that contain this
-     * fragment to allow an interaction in this fragment to be communicated
-     * to the activity and potentially other fragments contained in that
-     * activity.
-     * <p>
-     * See the Android Training lesson <a href=
-     * "http://developer.android.com/training/basics/fragments/communicating.html"
-     * >Communicating with Other Fragments</a> for more information.
      */
     public interface OnFragmentInteractionListener {
         // TODO: Update argument type and name
@@ -154,19 +145,8 @@ public class MapsforgeFragment extends Fragment {
                 this.mapView.getModel().mapViewPosition, AndroidGraphicFactory.INSTANCE) {
             @Override
             public boolean onTap(LatLong tapLatLong, org.mapsforge.core.model.Point layerXY, org.mapsforge.core.model.Point tapXY) {
-                if (mapView.getLayerManager().getLayers().size() > 2) {
-                    for (int i = 1; i < mapView.getLayerManager().getLayers().size(); i++) {
-                        mapView.getLayerManager().getLayers().remove(i);
-                    }
-                    addMarker(mapView.getLayerManager().getLayers(), tapLatLong);
-
-                    LatLong[] points = new LatLong[2];
-                    points[0] = mapView.getLayerManager().getLayers().get(1).getPosition();
-                    points[1] = mapView.getLayerManager().getLayers().get(2).getPosition();
-                    drawPolyline(mapView.getLayerManager().getLayers(), points);
-                } else {
-                    addMarker(mapView.getLayerManager().getLayers(), tapLatLong);
-                }
+                // single tap removes markers
+                removeLayersOnMap();
                 return super.onTap(tapLatLong, layerXY, tapXY);
             }
             public boolean onLongPress(LatLong tapLatLong, Point layerXY, Point tapXY) {
@@ -174,26 +154,16 @@ public class MapsforgeFragment extends Fragment {
                     logDisplayToUser("Calculation still in progress");
                     return false;
                 }
-
                 if (start != null && end == null) {
                     end = tapLatLong;
                     shortestPathRunning = true;
-                    //itemizedLayer.addItem(createMarkerItem(p, R.drawable.marker_icon_red));
-                    //addMarker();
-                    // TODO add markers
-                    //mapView.map().updateMap(true);
-
-                    calcPath(start.getLatitude(), start.getLongitude(), end.getLatitude(),
-                            end.getLongitude());
+                    addMarker(mapView.getLayerManager().getLayers(), tapLatLong);
+                    calcPath(start.getLatitude(), start.getLongitude(), end.getLatitude(), end.getLongitude());
                 } else {
                     start = tapLatLong;
                     end = null;
-                    // remove routing layers
-                    // mapView.map().layers().remove(pathLayer);
-                    //itemizedLayer.removeAllItems();
-                    // TODO remove routing layer
-                    // itemizedLayer.addItem(createMarkerItem(start, R.drawable.marker_icon_green));
-                    // mapView.map().updateMap(true);
+                    removeLayersOnMap();
+                    addMarker(mapView.getLayerManager().getLayers(), tapLatLong);
                 }
                 return true;
             }
@@ -242,8 +212,15 @@ public class MapsforgeFragment extends Fragment {
         mapView.getLayerManager().getLayers().add(tappableMarker);
     }
 
+    private void removeLayersOnMap() {
+        for (int i = 1; i < mapView.getLayerManager().getLayers().size(); i++) {
+            mapView.getLayerManager().getLayers().remove(i);
+        }
+    }
+
     private class TappableMarker extends Marker {
         public TappableMarker(int icon, LatLong localLatLong) {
+            // TODO override onTap to show location of marker.
             super(localLatLong, AndroidGraphicFactory.convertToBitmap(MapsforgeFragment.this.getResources().getDrawable(icon)),
                     AndroidGraphicFactory.convertToBitmap(MapsforgeFragment.this.getResources().getDrawable(icon)).getWidth() / 2,
                     -1 * (AndroidGraphicFactory.convertToBitmap(MapsforgeFragment.this.getResources().getDrawable(icon)).getHeight()) / 2);
