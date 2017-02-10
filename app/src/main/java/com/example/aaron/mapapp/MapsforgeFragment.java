@@ -62,6 +62,7 @@ public class MapsforgeFragment extends Fragment {
     private LatLong start;
     private  LatLong end;
     private File mapsDir;
+    private File mapArea;
     private volatile boolean shortestPathRunning = false;
 
     public MapsforgeFragment() {
@@ -134,6 +135,7 @@ public class MapsforgeFragment extends Fragment {
     }
 
     public void renderMap(String path) {
+        mapArea = new File(path);
         // create a tile cache of suitable size
         TileCache tileCache = AndroidUtil.createTileCache(this.getActivity(), "mapcache",
                 mapView.getModel().displayModel.getTileSize(), 1f,
@@ -271,8 +273,7 @@ public class MapsforgeFragment extends Fragment {
         new GHAsyncTask<Void, Void, Path>() {
             protected Path saveDoInBackground(Void... v) throws Exception {
                 GraphHopper tmpHopp = new GraphHopper().forMobile();
-                // TODO remove hardcoded path
-                tmpHopp.load(new File("/storage/emulated/0/Download/graphhopper/maps/sweden").getAbsolutePath() + "-gh");
+                tmpHopp.load(mapArea.getAbsoluteFile().getParent());
                 log("found graph " + tmpHopp.getGraphHopperStorage().toString() + ", nodes:" + tmpHopp.getGraphHopperStorage().getNodes());
                 hopper = tmpHopp;
                 return null;
