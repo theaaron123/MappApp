@@ -16,6 +16,7 @@ import android.widget.Toast;
 import org.mapsforge.core.graphics.Color;
 import org.mapsforge.core.graphics.Paint;
 import org.mapsforge.core.graphics.Style;
+import org.mapsforge.core.model.BoundingBox;
 import org.mapsforge.core.model.LatLong;
 import org.mapsforge.core.model.Point;
 import org.mapsforge.map.android.graphics.AndroidGraphicFactory;
@@ -60,10 +61,13 @@ public class MapsforgeFragment extends Fragment {
     private GraphHopper hopper;
     private OnFragmentInteractionListener mListener;
     private LatLong start;
-    private  LatLong end;
+    private LatLong end;
     private File mapsDir;
     private File mapArea;
     private volatile boolean shortestPathRunning = false;
+
+    // TODO move public and private methods into order and review access modifiers.
+    // TODO document methods
 
     public MapsforgeFragment() {
         // Required empty public constructor
@@ -130,7 +134,6 @@ public class MapsforgeFragment extends Fragment {
     /**
      */
     public interface OnFragmentInteractionListener {
-        // TODO: Update argument type and name
         void onFragmentInteraction(Uri uri);
     }
 
@@ -148,9 +151,12 @@ public class MapsforgeFragment extends Fragment {
             @Override
             public boolean onTap(LatLong tapLatLong, org.mapsforge.core.model.Point layerXY, org.mapsforge.core.model.Point tapXY) {
                 // single tap removes markers
+                start = null;
+                end = null;
                 removeLayersOnMap();
                 return super.onTap(tapLatLong, layerXY, tapXY);
             }
+
             public boolean onLongPress(LatLong tapLatLong, Point layerXY, Point tapXY) {
                 if (shortestPathRunning) {
                     logDisplayToUser("Calculation still in progress");
@@ -215,14 +221,32 @@ public class MapsforgeFragment extends Fragment {
     }
 
     private void removeLayersOnMap() {
+        // TODO doesn't always remove all other layers.
         for (int i = 1; i < mapView.getLayerManager().getLayers().size(); i++) {
             mapView.getLayerManager().getLayers().remove(i);
         }
     }
 
     private class TappableMarker extends Marker {
+        @Override
+        public boolean onTap(LatLong tapLatLong, Point layerXY, Point tapXY) {
+            double centerX = layerXY.x + getHorizontalOffset();
+            double centerY = layerXY.y + getVerticalOffset();
+
+            double radiusX = (getBitmap().getWidth() / 2) * 1.1;
+            double radiusY = (getBitmap().getHeight() / 2) * 1.1; // 10% margin on tap
+
+            double distX = Math.abs(centerX - tapXY.x);
+            double distY = Math.abs(centerY - tapXY.y);
+
+            if (distX < radiusX && distY < radiusY) {
+                Toast.makeText(mapView.getContext(), "Location: " + tapLatLong, Toast.LENGTH_LONG).show();
+                return true;
+            }
+            return false;
+        }
+
         public TappableMarker(int icon, LatLong localLatLong) {
-            // TODO override onTap to show location of marker.
             super(localLatLong, AndroidGraphicFactory.convertToBitmap(MapsforgeFragment.this.getResources().getDrawable(icon)),
                     AndroidGraphicFactory.convertToBitmap(MapsforgeFragment.this.getResources().getDrawable(icon)).getWidth() / 2,
                     -1 * (AndroidGraphicFactory.convertToBitmap(MapsforgeFragment.this.getResources().getDrawable(icon)).getHeight()) / 2);
@@ -232,7 +256,7 @@ public class MapsforgeFragment extends Fragment {
     public void calcPath(final double fromLat, final double fromLon,
                          final double toLat, final double toLon) {
 
-        log("calculating path ...");
+        log("calculating route ...");
         new AsyncTask<Void, Void, PathWrapper>() {
             float time;
 
@@ -250,10 +274,10 @@ public class MapsforgeFragment extends Fragment {
             protected void onPostExecute(PathWrapper resp) {
                 if (!resp.hasErrors()) {
                     log("from:" + fromLat + "," + fromLon + " to:" + toLat + ","
-                            + toLon + " found path with distance:" + resp.getDistance()
+                            + toLon + " found route with distance:" + resp.getDistance()
                             / 1000f + ", nodes:" + resp.getPoints().getSize() + ", time:"
                             + time + " " + resp.getDebugInfo());
-                    logDisplayToUser("the route is " + (int) (resp.getDistance() / 160) / 10f +" miles long, time:" + resp.getTime() / 60000f + "min, debug:" + time);
+                    logDisplayToUser("the route is " + (int) (resp.getDistance() / 160) / 10f + " miles long, time:" + resp.getTime() / 60000f + "min, debug:" + time);
                     LatLong[] points = new LatLong[resp.getPoints().size()];
 
                     for (int i = 0; i < resp.getPoints().size(); i++) {
@@ -268,6 +292,7 @@ public class MapsforgeFragment extends Fragment {
             }
         }.execute();
     }
+
     private void loadGraphStorage() {
         logDisplayToUser("loading graph (" + Constants.VERSION + ") ... ");
         new GHAsyncTask<Void, Void, Path>() {
@@ -281,17 +306,19 @@ public class MapsforgeFragment extends Fragment {
 
             protected void onPostExecute(Path o) {
                 if (hasError()) {
-                    logDisplayToUser("An error happened while creating graph:"
+                    logDisplayToUser("An error occurred while creating graph:"
                             + getErrorMessage());
                 } else {
-                    logDisplayToUser("Finished loading graph. Press long to define where to start and end the route.");
+                    logDisplayToUser("Finished loading graph. Long press to define where to start and end the route.");
                 }
             }
         }.execute();
     }
+
     private void log(String logText) {
         Log.i("GH", logText);
     }
+
     private void logDisplayToUser(String logText) {
         log(logText);
         Toast.makeText(this.getContext(), logText, Toast.LENGTH_LONG).show();
