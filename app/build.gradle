@@ -1,5 +1,9 @@
 apply plugin: 'com.android.application'
 
+def bazel_location = '/usr/local/bin/bazel'
+def cpuType = 'armeabi-v7a'
+def nativeDir = 'libs/' + cpuType
+
 repositories {
     mavenCentral()
     maven { url "https://mvnrepository.com/artifact/com.graphhopper/" }
@@ -9,6 +13,12 @@ repositories {
 android {
     compileSdkVersion 24
     buildToolsVersion "24.0.1"
+
+    sourceSets{
+        main {
+            assets.srcDirs = ['assets']
+        }
+    }
 
     defaultConfig {
         applicationId "com.example.aaron.mapapp"
@@ -26,6 +36,7 @@ android {
 }
 
 dependencies {
+    compile project(':tensorflow')
     compile fileTree(dir: 'libs', include: ['*.jar'])
     compile 'com.android.support:appcompat-v7:24.2.1'
     compile 'com.android.support:design:24.2.1'
@@ -39,3 +50,4 @@ dependencies {
         exclude group: 'org.apache.xmlgraphics', module: 'xmlgraphics-commons'
     }
 }
+

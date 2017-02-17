@@ -16,7 +16,6 @@ import android.widget.Toast;
 import org.mapsforge.core.graphics.Color;
 import org.mapsforge.core.graphics.Paint;
 import org.mapsforge.core.graphics.Style;
-import org.mapsforge.core.model.BoundingBox;
 import org.mapsforge.core.model.LatLong;
 import org.mapsforge.core.model.Point;
 import org.mapsforge.map.android.graphics.AndroidGraphicFactory;
@@ -42,6 +41,7 @@ import com.graphhopper.util.Parameters.Algorithms;
 import com.graphhopper.util.Parameters.Routing;
 import com.graphhopper.util.StopWatch;
 
+import org.tensorflow.contrib.android.TensorFlowInferenceInterface;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -65,6 +65,8 @@ public class MapsforgeFragment extends Fragment {
     private File mapsDir;
     private File mapArea;
     private volatile boolean shortestPathRunning = false;
+    private TensorFlowInferenceInterface tensorFlowInferenceInterface;
+
 
     // TODO move public and private methods into order and review access modifiers.
     // TODO document methods
@@ -94,6 +96,9 @@ public class MapsforgeFragment extends Fragment {
         this.mapView.setBuiltInZoomControls(true);
         this.mapView.setZoomLevelMin((byte) 10);
         this.mapView.setZoomLevelMax((byte) 20);
+
+        TensorFlowHandler tensorFlowHandler = new TensorFlowHandler();
+        tensorFlowHandler.createClassifier(this.getActivity());
 
         return view;
     }
