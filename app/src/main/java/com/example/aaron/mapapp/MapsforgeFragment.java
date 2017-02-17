@@ -13,6 +13,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Toast;
+import com.graphhopper.util.Parameters;
 import org.mapsforge.core.graphics.Color;
 import org.mapsforge.core.graphics.Paint;
 import org.mapsforge.core.graphics.Style;
@@ -65,7 +66,7 @@ public class MapsforgeFragment extends Fragment {
     private File mapsDir;
     private File mapArea;
     private volatile boolean shortestPathRunning = false;
-    private TensorFlowInferenceInterface tensorFlowInferenceInterface;
+   // private TensorFlowInferenceInterface tensorFlowInferenceInterface;
 
 
     // TODO move public and private methods into order and review access modifiers.
@@ -97,8 +98,8 @@ public class MapsforgeFragment extends Fragment {
         this.mapView.setZoomLevelMin((byte) 10);
         this.mapView.setZoomLevelMax((byte) 20);
 
-        TensorFlowHandler tensorFlowHandler = new TensorFlowHandler();
-        tensorFlowHandler.createClassifier(this.getActivity());
+        //TensorFlowHandler tensorFlowHandler = new TensorFlowHandler();
+       // tensorFlowHandler.createClassifier(this.getActivity());
 
         return view;
     }
@@ -268,10 +269,22 @@ public class MapsforgeFragment extends Fragment {
             protected PathWrapper doInBackground(Void... v) {
                 StopWatch sw = new StopWatch().start();
                 GHRequest req = new GHRequest(fromLat, fromLon, toLat, toLon).
-                        setAlgorithm(Algorithms.DIJKSTRA_BI);
+                        setAlgorithm(Algorithms.ALT_ROUTE);
                 req.getHints().
                         put(Routing.INSTRUCTIONS, "false");
+                req.getHints().put(Parameters.CH.DISABLE, "true");
+                req.getHints().put(Parameters.CH.INIT_DISABLING_ALLOWED, "true");
+
                 GHResponse resp = hopper.route(req);
+
+
+                // bias weights with tensorflow
+                //List<PathWrapper> pathWrappers = hopper.route(req).getAll();
+                //pathWrappers.get(0).getWaypoints();
+                // Generate images around pathway, send to tensorflow
+                //pathWrappers.get(0).setRouteWeight(pathWrappers.get(0).getRouteWeight()); // + tensorflow return
+
+
                 time = sw.stop().getSeconds();
                 return resp.getBest();
             }
@@ -303,6 +316,8 @@ public class MapsforgeFragment extends Fragment {
         new GHAsyncTask<Void, Void, Path>() {
             protected Path saveDoInBackground(Void... v) throws Exception {
                 GraphHopper tmpHopp = new GraphHopper().forMobile();
+                tmpHopp.setCHEnabled(false);
+                //tmpHopp.setEncodingManager(new EncodingManager("foot"));
                 tmpHopp.load(mapArea.getAbsoluteFile().getParent());
                 log("found graph " + tmpHopp.getGraphHopperStorage().toString() + ", nodes:" + tmpHopp.getGraphHopperStorage().getNodes());
                 hopper = tmpHopp;
