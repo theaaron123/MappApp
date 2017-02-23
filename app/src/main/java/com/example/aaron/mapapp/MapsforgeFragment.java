@@ -2,6 +2,7 @@ package com.example.aaron.mapapp;
 
 import android.content.Context;
 import android.content.Intent;
+import android.graphics.Bitmap;
 import android.graphics.Path;
 import android.net.Uri;
 import android.os.AsyncTask;
@@ -14,19 +15,27 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Toast;
 import com.graphhopper.util.Parameters;
-import org.mapsforge.core.graphics.Color;
-import org.mapsforge.core.graphics.Paint;
-import org.mapsforge.core.graphics.Style;
+import org.mapsforge.core.graphics.*;
+import org.mapsforge.core.model.BoundingBox;
 import org.mapsforge.core.model.LatLong;
 import org.mapsforge.core.model.Point;
+import org.mapsforge.core.model.Tile;
+import org.mapsforge.map.android.graphics.AndroidBitmap;
 import org.mapsforge.map.android.graphics.AndroidGraphicFactory;
+import org.mapsforge.map.android.graphics.AndroidTileBitmap;
 import org.mapsforge.map.android.util.AndroidUtil;
 import org.mapsforge.map.android.view.MapView;
 import org.mapsforge.map.datastore.MapDataStore;
+import org.mapsforge.map.datastore.MapReadResult;
 import org.mapsforge.map.layer.Layers;
+import org.mapsforge.map.layer.TileLayer;
+import org.mapsforge.map.layer.TilePosition;
 import org.mapsforge.map.layer.cache.TileCache;
+import org.mapsforge.map.layer.download.DownloadJob;
 import org.mapsforge.map.layer.overlay.Marker;
 import org.mapsforge.map.layer.overlay.Polyline;
+import org.mapsforge.map.layer.queue.Job;
+import org.mapsforge.map.layer.queue.JobQueue;
 import org.mapsforge.map.layer.renderer.TileRendererLayer;
 import org.mapsforge.map.reader.MapFile;
 import org.mapsforge.map.rendertheme.ExternalRenderTheme;
@@ -42,11 +51,16 @@ import com.graphhopper.util.Parameters.Algorithms;
 import com.graphhopper.util.Parameters.Routing;
 import com.graphhopper.util.StopWatch;
 
+import org.mapsforge.map.util.LayerUtil;
+import org.mapsforge.map.util.MapPositionUtil;
 import org.tensorflow.contrib.android.TensorFlowInferenceInterface;
 
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import static android.app.Activity.RESULT_OK;
 
@@ -58,6 +72,7 @@ import static android.app.Activity.RESULT_OK;
  */
 public class MapsforgeFragment extends Fragment {
     private MapView mapView;
+    private TileCache tileCache;
     Uri selectedFile;
     private GraphHopper hopper;
     private OnFragmentInteractionListener mListener;
@@ -144,15 +159,17 @@ public class MapsforgeFragment extends Fragment {
     }
 
     public void renderMap(String path) {
+        mapView.getModel().displayModel.setFixedTileSize(256);
+
         mapArea = new File(path);
         // create a tile cache of suitable size
-        TileCache tileCache = AndroidUtil.createTileCache(this.getActivity(), "mapcache",
-                mapView.getModel().displayModel.getTileSize(), 1f,
-                this.mapView.getModel().frameBufferModel.getOverdrawFactor());
+        tileCache = AndroidUtil.createTileCache(this.getActivity(), "mapcache",
+                256, 1f,
+                1.3);
 
         // tile renderer layer using specified render theme
         MapDataStore mapDataStore = new MapFile(new File(path));
-        TileRendererLayer tileRendererLayer = new TileRendererLayer(tileCache, mapDataStore,
+        final TileRendererLayer tileRendererLayer = new TileRendererLayer(tileCache, mapDataStore,
                 this.mapView.getModel().mapViewPosition, AndroidGraphicFactory.INSTANCE) {
             @Override
             public boolean onTap(LatLong tapLatLong, org.mapsforge.core.model.Point layerXY, org.mapsforge.core.model.Point tapXY) {
@@ -205,9 +222,9 @@ public class MapsforgeFragment extends Fragment {
         loadGraphStorage();
     }
 
-    public void drawPolyline(Layers layer, LatLong[] points) {
+    public void drawPolyline(Layers layer, LatLong[] points, Color color) {
         Paint paint = AndroidGraphicFactory.INSTANCE.createPaint();
-        paint.setColor(Color.RED);
+        paint.setColor(color);
         paint.setStrokeWidth(20);
         paint.setStyle(Style.STROKE);
 
@@ -277,13 +294,11 @@ public class MapsforgeFragment extends Fragment {
 
                 GHResponse resp = hopper.route(req);
 
-
                 // bias weights with tensorflow
                 //List<PathWrapper> pathWrappers = hopper.route(req).getAll();
                 //pathWrappers.get(0).getWaypoints();
                 // Generate images around pathway, send to tensorflow
                 //pathWrappers.get(0).setRouteWeight(pathWrappers.get(0).getRouteWeight()); // + tensorflow return
-
 
                 time = sw.stop().getSeconds();
                 return resp.getBest();
@@ -295,20 +310,41 @@ public class MapsforgeFragment extends Fragment {
                             + toLon + " found route with distance:" + resp.getDistance()
                             / 1000f + ", nodes:" + resp.getPoints().getSize() + ", time:"
                             + time + " " + resp.getDebugInfo());
-                    logDisplayToUser("the route is " + (int) (resp.getDistance() / 160) / 10f + " miles long, time:" + resp.getTime() / 60000f + "min, debug:" + time);
+                    logDisplayToUser("the route is " + (int) (resp.getDistance() / 160) / 10f
+                                    + " miles long, time:" + resp.getTime() / 60000f
+                                    + "min, debug:" + time);
                     LatLong[] points = new LatLong[resp.getPoints().size()];
 
                     for (int i = 0; i < resp.getPoints().size(); i++) {
-
-                        points[i] = new LatLong(resp.getPoints().getLatitude(i), resp.getPoints().getLongitude(i));
+                            points[i] = new LatLong(resp.getPoints().getLatitude(i), resp.getPoints().getLongitude(i));
                     }
-                    drawPolyline(mapView.getLayerManager().getLayers(), points);
+                    drawPolyline(mapView.getLayerManager().getLayers(), points, Color.RED);
                 } else {
                     logDisplayToUser("Error:" + resp.getErrors());
                 }
                 shortestPathRunning = false;
             }
         }.execute();
+    }
+
+    public Set<Bitmap> gatherRouteImages(GHResponse resp){
+        ImageGatherer imageGatherer = new ImageGatherer(mapView);
+        Set<Bitmap> bitmapArrayList = new HashSet<>();
+
+        for (PathWrapper pathWrapper: resp.getAll()) {
+            LatLong[] points = new LatLong[pathWrapper.getPoints().size()];
+            for (int i = 0; i < pathWrapper.getPoints().size(); i++) {
+                points[i] = new LatLong(pathWrapper.getPoints().getLatitude(i), pathWrapper.getPoints().getLongitude(i));
+            }
+            bitmapArrayList = imageGatherer.captureMapTiles(points, tileCache);
+        }
+        return bitmapArrayList;
+    }
+
+    public void classifComplexity(Set<Bitmap> routeBitmaps){
+        TensorFlowHandler tensorFlowHandler = new TensorFlowHandler();
+        for (Bitmap bitmap: routeBitmaps) {
+        }
     }
 
     private void loadGraphStorage() {

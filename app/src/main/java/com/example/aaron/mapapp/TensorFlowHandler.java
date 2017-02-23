@@ -54,8 +54,11 @@ public class TensorFlowHandler {
         } catch (final Exception e) {
             throw new RuntimeException("Error initializing TensorFlow!", e);
         }
+    }
 
-        File f= new File(Environment.getExternalStorageDirectory().getAbsolutePath() + "/Download/download.jpg");
+    public void classifyImage() {
+        // TODO don't classify hardcoded cat image
+        File f = new File(Environment.getExternalStorageDirectory().getAbsolutePath() + "/Download/download.jpg");
         BitmapFactory.Options options = new BitmapFactory.Options();
         options.inPreferredConfig = Bitmap.Config.ARGB_8888;
         try {
@@ -63,21 +66,19 @@ public class TensorFlowHandler {
         } catch (FileNotFoundException e) {
             e.printStackTrace();
         }
-
         Bitmap scaledBitmap = Bitmap.createScaledBitmap(croppedBitmap, 224, 224, false);
 
-
         //Runnable runnable = new Runnable() {
-         //   @Override
-            //public void run() {
-                final long startTime = SystemClock.uptimeMillis();
-                final List<Classifier.Recognition> results = classifier.recognizeImage(scaledBitmap);
-                lastProcessingTimeMs = SystemClock.uptimeMillis() - startTime;
+        //   @Override
+        //public void run() {
+        final long startTime = SystemClock.uptimeMillis();
+        final List<Classifier.Recognition> results = classifier.recognizeImage(scaledBitmap);
+        lastProcessingTimeMs = SystemClock.uptimeMillis() - startTime;
 
-                cropCopyBitmap = Bitmap.createBitmap(croppedBitmap);
-                computing = false;
-          //  }
-       // };
-       // runnable.run();
+        cropCopyBitmap = Bitmap.createBitmap(croppedBitmap);
+        computing = false;
+        //  }
+        // };
+        // runnable.run();
     }
 }
