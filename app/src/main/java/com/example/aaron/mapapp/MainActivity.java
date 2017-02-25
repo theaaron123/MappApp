@@ -15,7 +15,7 @@ import android.view.Menu;
 import android.view.MenuItem;
 
 public class MainActivity extends AppCompatActivity
-        implements NavigationView.OnNavigationItemSelectedListener {
+        implements NavigationView.OnNavigationItemSelectedListener, ImportedMapsFragment.OnFragmentInteractionListener {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -85,6 +85,14 @@ public class MainActivity extends AppCompatActivity
 
         } else if (id == R.id.nav_send) {
 
+        } else if (id == R.id.nav_imported_maps) {
+            FragmentManager fragmentManager = getSupportFragmentManager();
+            Fragment fragment = fragmentManager.findFragmentById(R.id.fragment_container);
+               fragment = new ImportedMapsFragment();
+               fragment.setArguments(null);
+               fragmentManager.beginTransaction()
+                       .replace(R.id.fragment_container, fragment)
+                       .commit();
         }
 
         DrawerLayout drawer = (DrawerLayout) findViewById(R.id.drawer_layout);
@@ -103,15 +111,17 @@ public class MainActivity extends AppCompatActivity
             Fragment fragment = fragmentManager.findFragmentById(R.id.fragment_container);
             Bundle bundle = new Bundle();
             bundle.putString("PATH", selectedFile.getPath());
-
-            if (fragment == null) {
                 fragment = new MapsforgeFragment();
                 fragment.setArguments(bundle);
                 fragmentManager.beginTransaction()
                         .add(R.id.fragment_container, fragment)
                         .commit();
-            }
             fragment.onActivityResult(requestCode, resultCode, data);
         }
+    }
+
+    @Override
+    public void onFragmentInteraction(Uri uri) {
+
     }
 }

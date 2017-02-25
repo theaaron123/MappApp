@@ -2,6 +2,7 @@ package com.example.aaron.mapapp;
 
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.graphics.Path;
 import android.net.Uri;
@@ -16,26 +17,16 @@ import android.view.ViewGroup;
 import android.widget.Toast;
 import com.graphhopper.util.Parameters;
 import org.mapsforge.core.graphics.*;
-import org.mapsforge.core.model.BoundingBox;
 import org.mapsforge.core.model.LatLong;
 import org.mapsforge.core.model.Point;
-import org.mapsforge.core.model.Tile;
-import org.mapsforge.map.android.graphics.AndroidBitmap;
 import org.mapsforge.map.android.graphics.AndroidGraphicFactory;
-import org.mapsforge.map.android.graphics.AndroidTileBitmap;
 import org.mapsforge.map.android.util.AndroidUtil;
 import org.mapsforge.map.android.view.MapView;
 import org.mapsforge.map.datastore.MapDataStore;
-import org.mapsforge.map.datastore.MapReadResult;
 import org.mapsforge.map.layer.Layers;
-import org.mapsforge.map.layer.TileLayer;
-import org.mapsforge.map.layer.TilePosition;
 import org.mapsforge.map.layer.cache.TileCache;
-import org.mapsforge.map.layer.download.DownloadJob;
 import org.mapsforge.map.layer.overlay.Marker;
 import org.mapsforge.map.layer.overlay.Polyline;
-import org.mapsforge.map.layer.queue.Job;
-import org.mapsforge.map.layer.queue.JobQueue;
 import org.mapsforge.map.layer.renderer.TileRendererLayer;
 import org.mapsforge.map.reader.MapFile;
 import org.mapsforge.map.rendertheme.ExternalRenderTheme;
@@ -50,14 +41,11 @@ import com.graphhopper.util.Constants;
 import com.graphhopper.util.Parameters.Algorithms;
 import com.graphhopper.util.Parameters.Routing;
 import com.graphhopper.util.StopWatch;
-
-import org.mapsforge.map.util.LayerUtil;
-import org.mapsforge.map.util.MapPositionUtil;
-import org.tensorflow.contrib.android.TensorFlowInferenceInterface;
+import org.tensorflow.contrib.android.Classifier;
 
 import java.io.File;
 import java.io.FileNotFoundException;
-import java.util.ArrayList;
+import java.net.URI;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -75,14 +63,11 @@ public class MapsforgeFragment extends Fragment {
     private TileCache tileCache;
     Uri selectedFile;
     private GraphHopper hopper;
-    private OnFragmentInteractionListener mListener;
     private LatLong start;
     private LatLong end;
     private File mapsDir;
     private File mapArea;
     private volatile boolean shortestPathRunning = false;
-   // private TensorFlowInferenceInterface tensorFlowInferenceInterface;
-
 
     // TODO move public and private methods into order and review access modifiers.
     // TODO document methods
@@ -97,6 +82,9 @@ public class MapsforgeFragment extends Fragment {
         AndroidGraphicFactory.createInstance(getActivity().getApplication());
         mapsDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
                 "/graphhopper/maps/");
+        if (getArguments().containsKey("PATH")) {
+            selectedFile = Uri.parse(getArguments().getString("PATH"));
+        }
     }
 
     @Override
@@ -113,9 +101,6 @@ public class MapsforgeFragment extends Fragment {
         this.mapView.setZoomLevelMin((byte) 10);
         this.mapView.setZoomLevelMax((byte) 20);
 
-        //TensorFlowHandler tensorFlowHandler = new TensorFlowHandler();
-       // tensorFlowHandler.createClassifier(this.getActivity());
-
         return view;
     }
 
@@ -127,12 +112,6 @@ public class MapsforgeFragment extends Fragment {
         }
     }
 
-    public void onButtonPressed(Uri uri) {
-        if (mListener != null) {
-            mListener.onFragmentInteraction(uri);
-        }
-    }
-
     @Override
     public void onAttach(Context context) {
         super.onAttach(context);
@@ -141,7 +120,6 @@ public class MapsforgeFragment extends Fragment {
     @Override
     public void onDetach() {
         super.onDetach();
-        mListener = null;
     }
 
     @Override
@@ -220,6 +198,7 @@ public class MapsforgeFragment extends Fragment {
         this.mapView.setZoomLevel((byte) 15);
         // storage of routing information
         loadGraphStorage();
+        writeSharedPreferene(path, path);
     }
 
     public void drawPolyline(Layers layer, LatLong[] points, Color color) {
@@ -248,6 +227,20 @@ public class MapsforgeFragment extends Fragment {
         for (int i = 1; i < mapView.getLayerManager().getLayers().size(); i++) {
             mapView.getLayerManager().getLayers().remove(i);
         }
+    }
+
+    private void writeSharedPreferene(String key, String val) {
+        SharedPreferences sharedPref = getActivity().getPreferences(Context.MODE_PRIVATE);
+        SharedPreferences.Editor editor = sharedPref.edit();
+        editor.putString(key, val);
+        editor.commit();
+    }
+
+    private String readSharedPreference(String key) {
+        SharedPreferences sharedPref = getActivity().getPreferences(Context.MODE_PRIVATE);
+        String defaultVal = "";
+        String val = sharedPref.getString(key, defaultVal);
+        return val;
     }
 
     private class TappableMarker extends Marker {
@@ -327,6 +320,7 @@ public class MapsforgeFragment extends Fragment {
         }.execute();
     }
 
+    // TODO evaluate moving to different class.
     public Set<Bitmap> gatherRouteImages(GHResponse resp){
         ImageGatherer imageGatherer = new ImageGatherer(mapView);
         Set<Bitmap> bitmapArrayList = new HashSet<>();
@@ -341,10 +335,23 @@ public class MapsforgeFragment extends Fragment {
         return bitmapArrayList;
     }
 
-    public void classifComplexity(Set<Bitmap> routeBitmaps){
+    public double classifComplexity(Set<Bitmap> routeBitmaps) {
         TensorFlowHandler tensorFlowHandler = new TensorFlowHandler();
+        tensorFlowHandler.createClassifier(this.getActivity());
+        double nonComplexValue = 0;
+        double complexValue = 0;
         for (Bitmap bitmap: routeBitmaps) {
+            List<Classifier.Recognition> recognitions = tensorFlowHandler.classifyImage(bitmap);
+            for(int i = 0; i < recognitions.size(); i++) {
+                if (recognitions.get(i).getTitle().contentEquals("NonComplex")) {
+                    nonComplexValue += recognitions.get(i).getConfidence();
+                }
+                if (recognitions.get(i).getTitle().contentEquals("Complex")) {
+                    complexValue += recognitions.get(i).getConfidence();
+                }
+            }
         }
+        return complexValue - nonComplexValue;
     }
 
     private void loadGraphStorage() {
