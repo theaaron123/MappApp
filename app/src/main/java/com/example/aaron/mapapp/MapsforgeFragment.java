@@ -5,6 +5,9 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.graphics.Path;
+import android.location.Location;
+import android.location.LocationListener;
+import android.location.LocationManager;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
@@ -45,7 +48,6 @@ import org.tensorflow.contrib.android.Classifier;
 
 import java.io.File;
 import java.io.FileNotFoundException;
-import java.net.URI;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -319,6 +321,34 @@ public class MapsforgeFragment extends Fragment {
             }
         }.execute();
     }
+
+    public void getGPSLocation() {
+        LocationManager locationManager =  (LocationManager) super.getActivity().getSystemService(Context.LOCATION_SERVICE);
+        LocationListener myLocationListener = new MyLocationListener();
+        locationManager.requestLocationUpdates( LocationManager.GPS_PROVIDER, 0, 0, myLocationListener);
+    }
+
+    public class MyLocationListener implements LocationListener {
+
+        @Override
+        public void onLocationChanged(Location location) {
+            logDisplayToUser(location.toString());
+        }
+
+        @Override
+        public void onStatusChanged(String s, int i, Bundle bundle) {
+        }
+
+        @Override
+        public void onProviderEnabled(String s) {
+        }
+
+        @Override
+        public void onProviderDisabled(String s) {
+        }
+    }
+
+
 
     // TODO evaluate moving to different class.
     public Set<Bitmap> gatherRouteImages(GHResponse resp){

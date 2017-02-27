@@ -84,8 +84,6 @@ public class ImportedMapsFragment extends Fragment {
 
     private void updateUI() {
         ArrayList<String> list  = new ArrayList<>();
-        list.add("ITEM UNO");
-        list.add("ITEM DUE");
         SharedPreferences sharedPreferences = getActivity().getPreferences(Context.MODE_PRIVATE);
         Map<String, ?> sharedPreferencesAll = sharedPreferences.getAll();
         for (String val : sharedPreferencesAll.keySet()) {
