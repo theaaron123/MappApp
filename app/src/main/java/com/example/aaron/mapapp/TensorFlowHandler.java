@@ -7,23 +7,31 @@ import org.tensorflow.contrib.android.Classifier;
 import org.tensorflow.contrib.android.TensorFlowImageClassifier;
 
 import java.util.List;
+import java.util.concurrent.Callable;
 
 /**
  * Created by aaron on 16/02/17.
  */
-public class TensorFlowHandler {
+public class TensorFlowHandler implements Callable {
 
-    private static final int NUM_CLASSES = 1008;
-    private static final int INPUT_SIZE = 224;
-    private static final int IMAGE_MEAN = 117;
-    private static final float IMAGE_STD = 1;
-    private static final String INPUT_NAME = "input:0";
-    private static final String OUTPUT_NAME = "output:0";
-    // TODO change model file
-    private static final String MODEL_FILE = "file:///android_asset/tensorflow_inception_graph.pb";
-    private static final String LABEL_FILE = "file:///android_asset/imagenet_comp_graph_label_strings.txt";
+    private static final int NUM_CLASSES = 2;
+    private static final int INPUT_SIZE = 299;
+    private static final int IMAGE_MEAN = 128;
+    private static final float IMAGE_STD = 128;
+    private static final String INPUT_NAME = "Mul:0";
+    private static final String OUTPUT_NAME = "final_result:0";
+    private static final String MODEL_FILE = "file:///android_asset/output_graph_stripped.pb";
+    private static final String LABEL_FILE = "file:///android_asset/output_labels.txt";
 
     private Classifier classifier;
+    private Bitmap classifyBitmap;
+
+    public TensorFlowHandler(){}
+
+    public TensorFlowHandler(Activity activity, Bitmap classifyBitmap) {
+        this.classifyBitmap = classifyBitmap;
+        createClassifier(activity);
+    }
 
     public void createClassifier(Activity activity) {
         try {
@@ -42,11 +50,20 @@ public class TensorFlowHandler {
         }
     }
 
-    public List<Classifier.Recognition> classifyImage(Bitmap classifyBitmap) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-            classifyBitmap.setConfig(Bitmap.Config.ARGB_8888);
-        }
-        Bitmap scaledBitmap = Bitmap.createScaledBitmap(classifyBitmap, INPUT_SIZE, INPUT_SIZE, false);
+    public List<Classifier.Recognition> classifyImage() {
+        Bitmap scaledBitmap = Bitmap.createScaledBitmap(this.classifyBitmap, INPUT_SIZE, INPUT_SIZE, false);
         return classifier.recognizeImage(scaledBitmap);
+    }
+    public List<Classifier.Recognition> classifyImage(Bitmap bitmap) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            //  classifyBitmap.setConfig(Bitmap.Config.ARGB_8888);
+        }
+        Bitmap scaledBitmap = Bitmap.createScaledBitmap(bitmap, INPUT_SIZE, INPUT_SIZE, false);
+        return classifier.recognizeImage(scaledBitmap);
+    }
+
+    @Override
+    public List<Classifier.Recognition> call() throws Exception {
+        return classifyImage();
     }
 }

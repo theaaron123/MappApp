@@ -7,4 +7,9 @@
             android:id="@+id/mapView"
             android:layout_width="fill_parent"
             android:layout_height="fill_parent" />
+    <Button
+            android:layout_width="31dp"
+            android:background="@drawable/ic_menu_current_position"
+            android:layout_height="31dp"
+            android:id="@+id/buttonGPS"/>
 </FrameLayout>

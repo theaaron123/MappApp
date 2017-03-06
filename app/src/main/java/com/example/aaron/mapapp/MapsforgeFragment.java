@@ -17,6 +17,7 @@ import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.Button;
 import android.widget.Toast;
 import com.graphhopper.util.Parameters;
 import org.mapsforge.core.graphics.*;
@@ -48,9 +49,11 @@ import org.tensorflow.contrib.android.Classifier;
 
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.*;
 
 import static android.app.Activity.RESULT_OK;
 
@@ -60,7 +63,7 @@ import static android.app.Activity.RESULT_OK;
  * {@link MapsforgeFragment.OnFragmentInteractionListener} interface
  * to handle interaction events.
  */
-public class MapsforgeFragment extends Fragment {
+public class MapsforgeFragment extends Fragment implements View.OnClickListener {
     private MapView mapView;
     private TileCache tileCache;
     Uri selectedFile;
@@ -92,7 +95,6 @@ public class MapsforgeFragment extends Fragment {
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
                              Bundle savedInstanceState) {
-
         // Inflate the layout for this fragment
         View view = inflater.inflate(R.layout.fragment_mapsforge, container, false);
 
@@ -103,7 +105,19 @@ public class MapsforgeFragment extends Fragment {
         this.mapView.setZoomLevelMin((byte) 10);
         this.mapView.setZoomLevelMax((byte) 20);
 
+        Button b = (Button) view.findViewById(R.id.buttonGPS);
+        b.setOnClickListener(this);
+
         return view;
+    }
+
+    @Override
+    public void onClick(View v) {
+        switch (v.getId()) {
+            case R.id.buttonGPS:
+                getGPSLocation();
+                break;
+        }
     }
 
     @Override
@@ -130,6 +144,13 @@ public class MapsforgeFragment extends Fragment {
         if (selectedFile != null) {
             renderMap(selectedFile.getPath());
         }
+    }
+
+    @Override
+    public void onDestroy() {
+        this.mapView.destroyAll();
+        AndroidGraphicFactory.clearResourceMemoryCache();
+        super.onDestroy();
     }
 
     /**
@@ -280,10 +301,8 @@ public class MapsforgeFragment extends Fragment {
 
             protected PathWrapper doInBackground(Void... v) {
                 StopWatch sw = new StopWatch().start();
-                GHRequest req = new GHRequest(fromLat, fromLon, toLat, toLon).
-                        setAlgorithm(Algorithms.ALT_ROUTE);
-                req.getHints().
-                        put(Routing.INSTRUCTIONS, "false");
+                GHRequest req = new GHRequest(fromLat, fromLon, toLat, toLon).setAlgorithm(Algorithms.ALT_ROUTE);
+                req.getHints().put(Routing.INSTRUCTIONS, "false");
                 req.getHints().put(Parameters.CH.DISABLE, "true");
                 req.getHints().put(Parameters.CH.INIT_DISABLING_ALLOWED, "true");
 
@@ -294,6 +313,9 @@ public class MapsforgeFragment extends Fragment {
                 //pathWrappers.get(0).getWaypoints();
                 // Generate images around pathway, send to tensorflow
                 //pathWrappers.get(0).setRouteWeight(pathWrappers.get(0).getRouteWeight()); // + tensorflow return
+                for (PathWrapper pathWrapper: resp.getAll()) {
+                    pathWrapper.setRouteWeight(pathWrapper.getRouteWeight() - classifComplexity(gatherRouteImages(pathWrapper)));
+                }
 
                 time = sw.stop().getSeconds();
                 return resp.getBest();
@@ -306,13 +328,14 @@ public class MapsforgeFragment extends Fragment {
                             / 1000f + ", nodes:" + resp.getPoints().getSize() + ", time:"
                             + time + " " + resp.getDebugInfo());
                     logDisplayToUser("the route is " + (int) (resp.getDistance() / 160) / 10f
-                                    + " miles long, time:" + resp.getTime() / 60000f
-                                    + "min, debug:" + time);
+                            + " miles long, time:" + resp.getTime() / 60000f
+                            + "min, debug:" + time);
                     LatLong[] points = new LatLong[resp.getPoints().size()];
 
                     for (int i = 0; i < resp.getPoints().size(); i++) {
-                            points[i] = new LatLong(resp.getPoints().getLatitude(i), resp.getPoints().getLongitude(i));
+                        points[i] = new LatLong(resp.getPoints().getLatitude(i), resp.getPoints().getLongitude(i));
                     }
+
                     drawPolyline(mapView.getLayerManager().getLayers(), points, Color.RED);
                 } else {
                     logDisplayToUser("Error:" + resp.getErrors());
@@ -323,9 +346,15 @@ public class MapsforgeFragment extends Fragment {
     }
 
     public void getGPSLocation() {
-        LocationManager locationManager =  (LocationManager) super.getActivity().getSystemService(Context.LOCATION_SERVICE);
+        LocationManager locationManager = (LocationManager) super.getActivity().getSystemService(Context.LOCATION_SERVICE);
         LocationListener myLocationListener = new MyLocationListener();
-        locationManager.requestLocationUpdates( LocationManager.GPS_PROVIDER, 0, 0, myLocationListener);
+
+        Location lastKnownLocation = locationManager.getLastKnownLocation("GPS");
+        if (lastKnownLocation != null) {
+            logDisplayToUser(lastKnownLocation.toString());
+        }
+
+        locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0, 0, myLocationListener);
     }
 
     public class MyLocationListener implements LocationListener {
@@ -348,21 +377,47 @@ public class MapsforgeFragment extends Fragment {
         }
     }
 
-
-
     // TODO evaluate moving to different class.
-    public Set<Bitmap> gatherRouteImages(GHResponse resp){
+    public Set<Bitmap> gatherRouteImages(PathWrapper pathWrapper) {
         ImageGatherer imageGatherer = new ImageGatherer(mapView);
         Set<Bitmap> bitmapArrayList = new HashSet<>();
 
-        for (PathWrapper pathWrapper: resp.getAll()) {
-            LatLong[] points = new LatLong[pathWrapper.getPoints().size()];
-            for (int i = 0; i < pathWrapper.getPoints().size(); i++) {
-                points[i] = new LatLong(pathWrapper.getPoints().getLatitude(i), pathWrapper.getPoints().getLongitude(i));
-            }
-            bitmapArrayList = imageGatherer.captureMapTiles(points, tileCache);
+        LatLong[] points = new LatLong[pathWrapper.getPoints().size()];
+        for (int i = 0; i < pathWrapper.getPoints().size(); i++) {
+            points[i] = new LatLong(pathWrapper.getPoints().getLatitude(i), pathWrapper.getPoints().getLongitude(i));
         }
+        bitmapArrayList = imageGatherer.captureMapTiles(points, tileCache);
         return bitmapArrayList;
+    }
+
+    public double classifyComplexity(Set<Bitmap> routeBitmaps) {
+        double nonComplexValue = 0;
+        double complexValue = 0;
+        ExecutorService executorService = Executors.newFixedThreadPool(2);
+        List<Future<List<Classifier.Recognition>>> list = new ArrayList<>();
+
+        for (Bitmap bitmap : routeBitmaps) {
+            Callable<List<Classifier.Recognition>> callable = new TensorFlowHandler(this.getActivity(), bitmap);
+            Future<List<Classifier.Recognition>> future = executorService.submit(callable);
+            list.add(future);
+        }
+        for(Future<List<Classifier.Recognition>> recognitionFuture : list){
+            try {
+                for (Classifier.Recognition recognition : recognitionFuture.get()) {
+                    recognitionFuture.get();
+                    if (recognition.getTitle().equalsIgnoreCase("nonComplex")) {
+                        nonComplexValue += recognition.getConfidence();
+                    }
+                    if (recognition.getTitle().equalsIgnoreCase("complex")) {
+                        complexValue += recognition.getConfidence();
+                    }
+                }
+            } catch (InterruptedException | ExecutionException e) {
+                e.printStackTrace();
+            }
+        }
+        executorService.shutdown();
+        return complexValue - nonComplexValue;
     }
 
     public double classifComplexity(Set<Bitmap> routeBitmaps) {

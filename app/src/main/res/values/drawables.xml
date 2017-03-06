@@ -7,5 +7,5 @@
     <item name="ic_menu_share" type="drawable">@android:drawable/ic_menu_share</item>
     <item name="ic_menu_send" type="drawable">@android:drawable/ic_menu_send</item>
     <item name="ic_menu_mylocation" type="drawable">@drawable/marker_icon_green</item>
-
+    <item name="ic_menu_current_position" type="drawable">@android:drawable/ic_menu_compass</item>
 </resources>
