@@ -3,8 +3,9 @@ package com.example.aaron.mapapp;
 import android.app.Activity;
 import android.graphics.Bitmap;
 import android.os.Build;
-import org.tensorflow.contrib.android.Classifier;
-import org.tensorflow.contrib.android.TensorFlowImageClassifier;
+import org.tensorflow.demo.Classifier;
+import org.tensorflow.demo.TensorFlowImageClassifier;
+
 
 import java.util.List;
 import java.util.concurrent.Callable;
@@ -20,7 +21,7 @@ public class TensorFlowHandler implements Callable {
     private static final float IMAGE_STD = 128;
     private static final String INPUT_NAME = "Mul:0";
     private static final String OUTPUT_NAME = "final_result:0";
-    private static final String MODEL_FILE = "file:///android_asset/output_graph_stripped.pb";
+    private static final String MODEL_FILE = "file:///android_asset/graph_optimised.pb";
     private static final String LABEL_FILE = "file:///android_asset/output_labels.txt";
 
     private Classifier classifier;
@@ -39,7 +40,6 @@ public class TensorFlowHandler implements Callable {
                     activity.getAssets(),
                     MODEL_FILE,
                     LABEL_FILE,
-                    NUM_CLASSES,
                     INPUT_SIZE,
                     IMAGE_MEAN,
                     IMAGE_STD,

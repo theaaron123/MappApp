@@ -45,7 +45,7 @@ import com.graphhopper.util.Constants;
 import com.graphhopper.util.Parameters.Algorithms;
 import com.graphhopper.util.Parameters.Routing;
 import com.graphhopper.util.StopWatch;
-import org.tensorflow.contrib.android.Classifier;
+import org.tensorflow.demo.Classifier;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -427,12 +427,12 @@ public class MapsforgeFragment extends Fragment implements View.OnClickListener 
         double complexValue = 0;
         for (Bitmap bitmap: routeBitmaps) {
             List<Classifier.Recognition> recognitions = tensorFlowHandler.classifyImage(bitmap);
-            for(int i = 0; i < recognitions.size(); i++) {
-                if (recognitions.get(i).getTitle().contentEquals("NonComplex")) {
-                    nonComplexValue += recognitions.get(i).getConfidence();
+            for (Classifier.Recognition recognition : recognitions) {
+                if (recognition.getTitle().contentEquals("NonComplex")) {
+                    nonComplexValue += recognition.getConfidence();
                 }
-                if (recognitions.get(i).getTitle().contentEquals("Complex")) {
-                    complexValue += recognitions.get(i).getConfidence();
+                if (recognition.getTitle().contentEquals("Complex")) {
+                    complexValue += recognition.getConfidence();
                 }
             }
         }
