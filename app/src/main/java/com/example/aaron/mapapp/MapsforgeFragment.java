@@ -12,6 +12,7 @@ import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.Environment;
+import android.os.SystemClock;
 import android.support.v4.app.Fragment;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -159,9 +160,10 @@ public class MapsforgeFragment extends Fragment implements View.OnClickListener 
         void onFragmentInteraction(Uri uri);
     }
 
+    float time = 0;
     public void renderMap(String path) {
         mapView.getModel().displayModel.setFixedTileSize(256);
-
+        time = SystemClock.currentThreadTimeMillis();
         mapArea = new File(path);
         // create a tile cache of suitable size
         tileCache = AndroidUtil.createTileCache(this.getActivity(), "mapcache",
@@ -259,10 +261,17 @@ public class MapsforgeFragment extends Fragment implements View.OnClickListener 
         editor.commit();
     }
 
-    private String readSharedPreference(String key) {
+    private String readSharedPreferenceString(String key) {
         SharedPreferences sharedPref = getActivity().getPreferences(Context.MODE_PRIVATE);
         String defaultVal = "";
         String val = sharedPref.getString(key, defaultVal);
+        return val;
+    }
+
+    private Boolean readSharedPreferenceBool(String key) {
+        SharedPreferences sharedPref = getActivity().getPreferences(Context.MODE_PRIVATE);
+        Boolean defaultVal = false;
+        Boolean val = sharedPref.getBoolean(key, defaultVal);
         return val;
     }
 
@@ -308,13 +317,10 @@ public class MapsforgeFragment extends Fragment implements View.OnClickListener 
 
                 GHResponse resp = hopper.route(req);
 
-                // bias weights with tensorflow
-                //List<PathWrapper> pathWrappers = hopper.route(req).getAll();
-                //pathWrappers.get(0).getWaypoints();
-                // Generate images around pathway, send to tensorflow
-                //pathWrappers.get(0).setRouteWeight(pathWrappers.get(0).getRouteWeight()); // + tensorflow return
-                for (PathWrapper pathWrapper: resp.getAll()) {
-                    pathWrapper.setRouteWeight(pathWrapper.getRouteWeight() - classifComplexity(gatherRouteImages(pathWrapper)));
+                if (readSharedPreferenceBool("EnhancedRouting") == true) {
+                    for (PathWrapper pathWrapper : resp.getAll()) {
+                        pathWrapper.setRouteWeight(pathWrapper.getRouteWeight() - classifComplexity(gatherRouteImages(pathWrapper)));
+                    }
                 }
 
                 time = sw.stop().getSeconds();
@@ -328,8 +334,8 @@ public class MapsforgeFragment extends Fragment implements View.OnClickListener 
                             / 1000f + ", nodes:" + resp.getPoints().getSize() + ", time:"
                             + time + " " + resp.getDebugInfo());
                     logDisplayToUser("the route is " + (int) (resp.getDistance() / 160) / 10f
-                            + " miles long, time:" + resp.getTime() / 60000f
-                            + "min, debug:" + time);
+                            + " miles long, walking time:" + resp.getTime() / 60000f
+                            + "min, calculation time:" + time + " seconds");
                     LatLong[] points = new LatLong[resp.getPoints().size()];
 
                     for (int i = 0; i < resp.getPoints().size(); i++) {
@@ -457,7 +463,7 @@ public class MapsforgeFragment extends Fragment implements View.OnClickListener 
                     logDisplayToUser("An error occurred while creating graph:"
                             + getErrorMessage());
                 } else {
-                    logDisplayToUser("Finished loading graph. Long press to define where to start and end the route.");
+                    logDisplayToUser("Finished loading graph. Long press to define where to start and end the route. Time to load  = " + (SystemClock.currentThreadTimeMillis() - time) / 100 + " seconds");
                 }
             }
         }.execute();
@@ -471,5 +477,4 @@ public class MapsforgeFragment extends Fragment implements View.OnClickListener 
         log(logText);
         Toast.makeText(this.getContext(), logText, Toast.LENGTH_LONG).show();
     }
-
 }

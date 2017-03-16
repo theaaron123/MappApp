@@ -1,5 +1,7 @@
 package com.example.aaron.mapapp;
 
+import android.content.Context;
+import android.content.SharedPreferences;
 import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentManager;
 import android.content.Intent;
@@ -7,12 +9,16 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.support.design.widget.NavigationView;
 import android.support.v4.view.GravityCompat;
+import android.support.v4.view.MenuItemCompat;
 import android.support.v4.widget.DrawerLayout;
 import android.support.v7.app.ActionBarDrawerToggle;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.widget.CheckBox;
+import android.widget.CompoundButton;
+import android.widget.Toast;
 
 public class MainActivity extends AppCompatActivity
         implements NavigationView.OnNavigationItemSelectedListener, ImportedMapsFragment.OnFragmentInteractionListener {
@@ -33,6 +39,19 @@ public class MainActivity extends AppCompatActivity
 
         NavigationView navigationView = (NavigationView) findViewById(R.id.nav_view);
         navigationView.setNavigationItemSelectedListener(this);
+        MenuItem checkBoxItem = navigationView.getMenu().findItem(R.id.nav_checkbox);
+        CheckBox checkBox = (CheckBox) MenuItemCompat.getActionView(checkBoxItem);
+        checkBox.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(CompoundButton compoundButton, boolean b) {
+                //Write to shared preferences
+                SharedPreferences sharedPref = getPreferences(Context.MODE_PRIVATE);
+                SharedPreferences.Editor editor = sharedPref.edit();
+                editor.putBoolean("EnhancedRouting",  b);
+                editor.commit();
+            }
+        });
+
     }
 
     @Override

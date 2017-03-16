@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<menu xmlns:android="http://schemas.android.com/apk/res/android">
+<menu xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
 
     <group android:checkableBehavior="single">
         <item
@@ -24,5 +24,10 @@
                     android:title="Send"/>
         </menu>
     </item>
+    <item
+            android:id="@+id/nav_checkbox"
+            android:icon="@drawable/ic_menu_current_position"
+            android:title="Enhanced Routing"
+            app:actionLayout="@layout/widget_check" />
 
 </menu>
