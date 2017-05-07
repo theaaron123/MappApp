@@ -9,10 +9,7 @@ import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
 import android.net.Uri;
-import android.os.AsyncTask;
-import android.os.Bundle;
-import android.os.Environment;
-import android.os.SystemClock;
+import android.os.*;
 import android.support.v4.app.Fragment;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -50,10 +47,7 @@ import org.tensorflow.demo.Classifier;
 
 import java.io.File;
 import java.io.FileNotFoundException;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.*;
 
 import static android.app.Activity.RESULT_OK;
@@ -67,13 +61,14 @@ import static android.app.Activity.RESULT_OK;
 public class MapsforgeFragment extends Fragment implements View.OnClickListener {
     private MapView mapView;
     private TileCache tileCache;
-    Uri selectedFile;
+    private Uri selectedFile;
     private GraphHopper hopper;
     private LatLong start;
     private LatLong end;
     private File mapsDir;
     private File mapArea;
     private volatile boolean shortestPathRunning = false;
+    private float time = 0;
 
     // TODO move public and private methods into order and review access modifiers.
     // TODO document methods
@@ -160,7 +155,6 @@ public class MapsforgeFragment extends Fragment implements View.OnClickListener 
         void onFragmentInteraction(Uri uri);
     }
 
-    float time = 0;
     public void renderMap(String path) {
         mapView.getModel().displayModel.setFixedTileSize(256);
         time = SystemClock.currentThreadTimeMillis();
@@ -319,10 +313,9 @@ public class MapsforgeFragment extends Fragment implements View.OnClickListener 
 
                 if (readSharedPreferenceBool("EnhancedRouting") == true) {
                     for (PathWrapper pathWrapper : resp.getAll()) {
-                        pathWrapper.setRouteWeight(pathWrapper.getRouteWeight() - classifComplexity(gatherRouteImages(pathWrapper)));
+                        pathWrapper.setRouteWeight(pathWrapper.getRouteWeight() - classifyComplexity(gatherRouteImages(pathWrapper)));
                     }
                 }
-
                 time = sw.stop().getSeconds();
                 return resp.getBest();
             }
@@ -359,7 +352,6 @@ public class MapsforgeFragment extends Fragment implements View.OnClickListener 
         if (lastKnownLocation != null) {
             logDisplayToUser(lastKnownLocation.toString());
         }
-
         locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0, 0, myLocationListener);
     }
 
@@ -396,7 +388,7 @@ public class MapsforgeFragment extends Fragment implements View.OnClickListener 
         return bitmapArrayList;
     }
 
-    public double classifyComplexity(Set<Bitmap> routeBitmaps) {
+    public double classifyComplexityMultiThreaded(Set<Bitmap> routeBitmaps) {
         double nonComplexValue = 0;
         double complexValue = 0;
         ExecutorService executorService = Executors.newFixedThreadPool(2);
@@ -407,7 +399,7 @@ public class MapsforgeFragment extends Fragment implements View.OnClickListener 
             Future<List<Classifier.Recognition>> future = executorService.submit(callable);
             list.add(future);
         }
-        for(Future<List<Classifier.Recognition>> recognitionFuture : list){
+        for (Future<List<Classifier.Recognition>> recognitionFuture : list) {
             try {
                 for (Classifier.Recognition recognition : recognitionFuture.get()) {
                     recognitionFuture.get();
@@ -426,12 +418,12 @@ public class MapsforgeFragment extends Fragment implements View.OnClickListener 
         return complexValue - nonComplexValue;
     }
 
-    public double classifComplexity(Set<Bitmap> routeBitmaps) {
+    public double classifyComplexity(Set<Bitmap> routeBitmaps) {
         TensorFlowHandler tensorFlowHandler = new TensorFlowHandler();
         tensorFlowHandler.createClassifier(this.getActivity());
         double nonComplexValue = 0;
         double complexValue = 0;
-        for (Bitmap bitmap: routeBitmaps) {
+        for (Bitmap bitmap : routeBitmaps) {
             List<Classifier.Recognition> recognitions = tensorFlowHandler.classifyImage(bitmap);
             for (Classifier.Recognition recognition : recognitions) {
                 if (recognition.getTitle().contentEquals("NonComplex")) {
