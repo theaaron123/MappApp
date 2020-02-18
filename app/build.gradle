@@ -47,14 +47,15 @@ android {
 dependencies {
     implementation project(':tensorflow')
     implementation fileTree(include: ['*.jar'], dir: 'libs')
-    compile('com.graphhopper:graphhopper-core:0.8.2') {
+    implementation('com.graphhopper:graphhopper-core:0.8.2') {
         exclude group: 'com.google.protobuf', module: 'protobuf-java'
         exclude group: 'org.openstreetmap.osmosis', module: 'osmosis-osm-binary'
         exclude group: 'org.apache.xmlgraphics', module: 'xmlgraphics-commons'
     }
     implementation "com.android.support:appcompat-v7:28.0.0"
     implementation 'com.android.support:design:28.0.0'
-    implementation 'org.mapsforge:mapsforge-map-android:0.6.1'
+    implementation 'org.mapsforge:mapsforge-map-android:0.13.0'
+    implementation 'org.mapsforge:mapsforge-themes:0.13.0'
     implementation 'com.caverock:androidsvg:1.2.2-beta-1'
     implementation 'com.android.support:support-v4:28.0.0'
     implementation 'com.android.support:support-vector-drawable:28.0.0'

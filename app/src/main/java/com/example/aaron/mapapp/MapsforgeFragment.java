@@ -3,6 +3,7 @@ package com.example.aaron.mapapp;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.Path;
 import android.location.Location;
@@ -10,6 +11,8 @@ import android.location.LocationListener;
 import android.location.LocationManager;
 import android.net.Uri;
 import android.os.*;
+import android.provider.MediaStore;
+import android.provider.OpenableColumns;
 import android.support.v4.app.Fragment;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -46,6 +49,7 @@ import com.graphhopper.util.StopWatch;
 import org.tensorflow.demo.Classifier;
 
 import java.io.File;
+import java.io.FileDescriptor;
 import java.io.FileNotFoundException;
 import java.util.*;
 import java.util.concurrent.*;
@@ -83,9 +87,9 @@ public class MapsforgeFragment extends Fragment implements View.OnClickListener 
         AndroidGraphicFactory.createInstance(getActivity().getApplication());
         mapsDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
                 "/graphhopper/maps/");
-        if (getArguments().containsKey("PATH")) {
-            selectedFile = Uri.parse(getArguments().getString("PATH"));
-        }
+//        if (getArguments().containsKey("PATH")) {
+//            selectedFile = Uri.parse(getArguments().getString("PATH"));
+//        }
     }
 
     @Override
@@ -138,7 +142,7 @@ public class MapsforgeFragment extends Fragment implements View.OnClickListener 
     public void onStart() {
         super.onStart();
         if (selectedFile != null) {
-            renderMap(selectedFile.getPath());
+            renderMap(selectedFile);
         }
     }
 
@@ -155,17 +159,35 @@ public class MapsforgeFragment extends Fragment implements View.OnClickListener 
         void onFragmentInteraction(Uri uri);
     }
 
-    public void renderMap(String path) {
+    private String getRealPathFromURI(Uri contentURI) {
+        String result;
+        Cursor cursor = getActivity().getApplicationContext().getContentResolver().query(contentURI, null, null, null, null);
+        if (cursor == null) {
+            result = contentURI.getPath();
+        } else {
+            cursor.moveToFirst();
+            int idx = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME);
+            result = cursor.getString(idx);
+            cursor.close();
+        }
+        return result;
+    }
+
+    public void renderMap(Uri mapFileUri) {
+        String realPathFromURI = getRealPathFromURI(mapFileUri);
+        realPathFromURI = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS) + "/" + realPathFromURI;
+
         mapView.getModel().displayModel.setFixedTileSize(256);
         time = SystemClock.currentThreadTimeMillis();
-        mapArea = new File(path);
+        mapArea = new File(realPathFromURI);
         // create a tile cache of suitable size
         tileCache = AndroidUtil.createTileCache(this.getActivity(), "mapcache",
                 256, 1f,
                 1.3);
 
         // tile renderer layer using specified render theme
-        MapDataStore mapDataStore = new MapFile(new File(path));
+
+        MapDataStore mapDataStore = new MapFile(new File(realPathFromURI));
         final TileRendererLayer tileRendererLayer = new TileRendererLayer(tileCache, mapDataStore,
                 this.mapView.getModel().mapViewPosition, AndroidGraphicFactory.INSTANCE) {
             @Override
@@ -217,7 +239,7 @@ public class MapsforgeFragment extends Fragment implements View.OnClickListener 
         this.mapView.setZoomLevel((byte) 15);
         // storage of routing information
         loadGraphStorage();
-        writeSharedPreferene(path, path);
+        writeSharedPreferene(mapFileUri.getPath(), mapFileUri.getPath());
     }
 
     public void drawPolyline(Layers layer, LatLong[] points, Color color) {
