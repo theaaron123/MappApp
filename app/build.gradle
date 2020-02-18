@@ -8,11 +8,19 @@ repositories {
     mavenCentral()
     maven { url "https://mvnrepository.com/artifact/com.graphhopper/" }
     maven { url "https://mvnrepository.com/artifact/com.graphhopper/graphhopper-core" }
+    maven {
+        url 'https://maven.google.com/'
+        name 'Google'
+    }
 }
 
 android {
-    compileSdkVersion 24
-    buildToolsVersion "24.0.1"
+    compileSdkVersion 28
+    buildToolsVersion "29.0.3"
+
+    lintOptions {
+        abortOnError false
+    }
 
     sourceSets {
         main {
@@ -23,7 +31,7 @@ android {
     defaultConfig {
         applicationId "com.example.aaron.mapapp"
         minSdkVersion 14
-        targetSdkVersion 24
+        targetSdkVersion 28
         versionCode 1
         versionName "1.0"
         vectorDrawables.useSupportLibrary = true
@@ -37,20 +45,26 @@ android {
 }
 
 dependencies {
-    compile project(':tensorflow')
-    compile fileTree(dir: 'libs', include: ['*.jar'])
-    compile(group: 'com.graphhopper', name: 'graphhopper-core', version: '0.8.2') {
+    implementation project(':tensorflow')
+    implementation fileTree(include: ['*.jar'], dir: 'libs')
+    compile('com.graphhopper:graphhopper-core:0.8.2') {
         exclude group: 'com.google.protobuf', module: 'protobuf-java'
         exclude group: 'org.openstreetmap.osmosis', module: 'osmosis-osm-binary'
         exclude group: 'org.apache.xmlgraphics', module: 'xmlgraphics-commons'
     }
-    compile 'com.android.support:appcompat-v7:24.2.1'
-    compile 'com.android.support:design:24.2.1'
-    compile 'org.mapsforge:mapsforge-map-android:0.6.1'
-    compile 'com.caverock:androidsvg:1.2.2-beta-1'
-    compile 'com.android.support:support-v4:24.2.1'
-    compile 'com.android.support:recyclerview-v7:24.2.1'
-    compile 'com.android.support:support-vector-drawable:24.2.1'
-    testCompile 'junit:junit:4.12'
+    implementation "com.android.support:appcompat-v7:28.0.0"
+    implementation 'com.android.support:design:28.0.0'
+    implementation 'org.mapsforge:mapsforge-map-android:0.6.1'
+    implementation 'com.caverock:androidsvg:1.2.2-beta-1'
+    implementation 'com.android.support:support-v4:28.0.0'
+    implementation 'com.android.support:support-vector-drawable:28.0.0'
+    implementation 'com.android.support:recyclerview-v7:28.0.0'
+    implementation 'com.android.support:support-vector-drawable:28.0.0'
+    testImplementation 'junit:junit:4.12'
 }
 
+allprojects {
+    repositories {
+        google()
+    }
+}
