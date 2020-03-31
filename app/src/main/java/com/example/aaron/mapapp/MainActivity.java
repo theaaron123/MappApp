@@ -124,7 +124,6 @@ public class MainActivity extends AppCompatActivity
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == 123 && resultCode == RESULT_OK) {
             Uri selectedFile = data.getData(); //The uri with the location of the file
-           // renderMap(selectedFile.getPath());
 
             FragmentManager fragmentManager = getSupportFragmentManager();
             Fragment fragment = fragmentManager.findFragmentById(R.id.fragment_container);

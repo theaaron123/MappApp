@@ -4,14 +4,15 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.database.Cursor;
-import android.graphics.Bitmap;
 import android.graphics.Path;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
 import android.net.Uri;
-import android.os.*;
-import android.provider.MediaStore;
+import android.os.AsyncTask;
+import android.os.Bundle;
+import android.os.Environment;
+import android.os.SystemClock;
 import android.provider.OpenableColumns;
 import android.support.v4.app.Fragment;
 import android.util.Log;
@@ -20,8 +21,20 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.Toast;
+
+import com.graphhopper.GHRequest;
+import com.graphhopper.GHResponse;
+import com.graphhopper.GraphHopper;
+import com.graphhopper.PathWrapper;
+import com.graphhopper.util.Constants;
 import com.graphhopper.util.Parameters;
-import org.mapsforge.core.graphics.*;
+import com.graphhopper.util.Parameters.Algorithms;
+import com.graphhopper.util.Parameters.Routing;
+import com.graphhopper.util.StopWatch;
+
+import org.mapsforge.core.graphics.Color;
+import org.mapsforge.core.graphics.Paint;
+import org.mapsforge.core.graphics.Style;
 import org.mapsforge.core.model.LatLong;
 import org.mapsforge.core.model.Point;
 import org.mapsforge.map.android.graphics.AndroidGraphicFactory;
@@ -38,21 +51,9 @@ import org.mapsforge.map.rendertheme.ExternalRenderTheme;
 import org.mapsforge.map.rendertheme.InternalRenderTheme;
 import org.mapsforge.map.rendertheme.XmlRenderTheme;
 
-import com.graphhopper.GHRequest;
-import com.graphhopper.GHResponse;
-import com.graphhopper.GraphHopper;
-import com.graphhopper.PathWrapper;
-import com.graphhopper.util.Constants;
-import com.graphhopper.util.Parameters.Algorithms;
-import com.graphhopper.util.Parameters.Routing;
-import com.graphhopper.util.StopWatch;
-import org.tensorflow.demo.Classifier;
-
 import java.io.File;
-import java.io.FileDescriptor;
 import java.io.FileNotFoundException;
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.List;
 
 import static android.app.Activity.RESULT_OK;
 
@@ -87,9 +88,6 @@ public class MapsforgeFragment extends Fragment implements View.OnClickListener 
         AndroidGraphicFactory.createInstance(getActivity().getApplication());
         mapsDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
                 "/graphhopper/maps/");
-//        if (getArguments().containsKey("PATH")) {
-//            selectedFile = Uri.parse(getArguments().getString("PATH"));
-//        }
     }
 
     @Override
@@ -153,26 +151,6 @@ public class MapsforgeFragment extends Fragment implements View.OnClickListener 
         super.onDestroy();
     }
 
-    /**
-     */
-    public interface OnFragmentInteractionListener {
-        void onFragmentInteraction(Uri uri);
-    }
-
-    private String getRealPathFromURI(Uri contentURI) {
-        String result;
-        Cursor cursor = getActivity().getApplicationContext().getContentResolver().query(contentURI, null, null, null, null);
-        if (cursor == null) {
-            result = contentURI.getPath();
-        } else {
-            cursor.moveToFirst();
-            int idx = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME);
-            result = cursor.getString(idx);
-            cursor.close();
-        }
-        return result;
-    }
-
     public void renderMap(Uri mapFileUri) {
         String realPathFromURI = getRealPathFromURI(mapFileUri);
         realPathFromURI = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS) + "/" + realPathFromURI;
@@ -186,12 +164,24 @@ public class MapsforgeFragment extends Fragment implements View.OnClickListener 
                 1.3);
 
         // tile renderer layer using specified render theme
-
         MapDataStore mapDataStore = new MapFile(new File(realPathFromURI));
-        final TileRendererLayer tileRendererLayer = new TileRendererLayer(tileCache, mapDataStore,
+        final TileRendererLayer tileRendererLayer = createTileRenderLayer(mapDataStore);
+
+        setRenderTheme(tileRendererLayer);
+        // only once a layer is associated with a mapView the rendering starts
+        this.mapView.getLayerManager().getLayers().add(tileRendererLayer);
+        this.mapView.setCenter(mapDataStore.startPosition());
+        this.mapView.setZoomLevel((byte) 15);
+        // storage of routing information
+        loadGraphStorage();
+        writeSharedPreference(mapFileUri.getPath(), mapFileUri.getPath());
+    }
+
+    private TileRendererLayer createTileRenderLayer(final MapDataStore mapDataStore) {
+        return new TileRendererLayer(tileCache, mapDataStore,
                 this.mapView.getModel().mapViewPosition, AndroidGraphicFactory.INSTANCE) {
             @Override
-            public boolean onTap(LatLong tapLatLong, org.mapsforge.core.model.Point layerXY, org.mapsforge.core.model.Point tapXY) {
+            public boolean onTap(LatLong tapLatLong, Point layerXY, Point tapXY) {
                 // single tap removes markers
                 start = null;
                 end = null;
@@ -218,7 +208,9 @@ public class MapsforgeFragment extends Fragment implements View.OnClickListener 
                 return true;
             }
         };
+    }
 
+    private void setRenderTheme(TileRendererLayer tileRendererLayer) {
         XmlRenderTheme renderTheme = null;
 
         try {
@@ -232,14 +224,6 @@ public class MapsforgeFragment extends Fragment implements View.OnClickListener 
         } else {
             tileRendererLayer.setXmlRenderTheme(renderTheme);
         }
-
-        // only once a layer is associated with a mapView the rendering starts
-        this.mapView.getLayerManager().getLayers().add(tileRendererLayer);
-        this.mapView.setCenter(mapDataStore.startPosition());
-        this.mapView.setZoomLevel((byte) 15);
-        // storage of routing information
-        loadGraphStorage();
-        writeSharedPreferene(mapFileUri.getPath(), mapFileUri.getPath());
     }
 
     public void drawPolyline(Layers layer, LatLong[] points, Color color) {
@@ -270,54 +254,21 @@ public class MapsforgeFragment extends Fragment implements View.OnClickListener 
         }
     }
 
-    private void writeSharedPreferene(String key, String val) {
-        SharedPreferences sharedPref = getActivity().getPreferences(Context.MODE_PRIVATE);
-        SharedPreferences.Editor editor = sharedPref.edit();
-        editor.putString(key, val);
-        editor.commit();
-    }
-
-    private String readSharedPreferenceString(String key) {
-        SharedPreferences sharedPref = getActivity().getPreferences(Context.MODE_PRIVATE);
-        String defaultVal = "";
-        String val = sharedPref.getString(key, defaultVal);
-        return val;
-    }
-
-    private Boolean readSharedPreferenceBool(String key) {
-        SharedPreferences sharedPref = getActivity().getPreferences(Context.MODE_PRIVATE);
-        Boolean defaultVal = false;
-        Boolean val = sharedPref.getBoolean(key, defaultVal);
-        return val;
-    }
-
-    private class TappableMarker extends Marker {
-        @Override
-        public boolean onTap(LatLong tapLatLong, Point layerXY, Point tapXY) {
-            double centerX = layerXY.x + getHorizontalOffset();
-            double centerY = layerXY.y + getVerticalOffset();
-
-            double radiusX = (getBitmap().getWidth() / 2) * 1.1;
-            double radiusY = (getBitmap().getHeight() / 2) * 1.1; // 10% margin on tap
-
-            double distX = Math.abs(centerX - tapXY.x);
-            double distY = Math.abs(centerY - tapXY.y);
-
-            if (distX < radiusX && distY < radiusY) {
-                Toast.makeText(mapView.getContext(), "Location: " + tapLatLong, Toast.LENGTH_LONG).show();
-                return true;
-            }
-            return false;
+    private String getRealPathFromURI(Uri contentURI) {
+        String result;
+        Cursor cursor = getActivity().getApplicationContext().getContentResolver().query(contentURI, null, null, null, null);
+        if (cursor == null) {
+            result = contentURI.getPath();
+        } else {
+            cursor.moveToFirst();
+            int idx = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME);
+            result = cursor.getString(idx);
+            cursor.close();
         }
-
-        public TappableMarker(int icon, LatLong localLatLong) {
-            super(localLatLong, AndroidGraphicFactory.convertToBitmap(MapsforgeFragment.this.getResources().getDrawable(icon)),
-                    AndroidGraphicFactory.convertToBitmap(MapsforgeFragment.this.getResources().getDrawable(icon)).getWidth() / 2,
-                    -1 * (AndroidGraphicFactory.convertToBitmap(MapsforgeFragment.this.getResources().getDrawable(icon)).getHeight()) / 2);
-        }
+        return result;
     }
 
-    public void calcPath(final double fromLat, final double fromLon,
+    private void calcPath(final double fromLat, final double fromLon,
                          final double toLat, final double toLon) {
 
         log("calculating route ...");
@@ -335,7 +286,7 @@ public class MapsforgeFragment extends Fragment implements View.OnClickListener 
 
                 if (readSharedPreferenceBool("EnhancedRouting") == true) {
                     for (PathWrapper pathWrapper : resp.getAll()) {
-                        pathWrapper.setRouteWeight(pathWrapper.getRouteWeight() - classifyComplexity(gatherRouteImages(pathWrapper)));
+                        pathWrapper.setRouteWeight(pathWrapper.getRouteWeight() - RoutingHelper.classifyComplexity(MapsforgeFragment.this, RoutingHelper.gatherRouteImages(mapView, tileCache, pathWrapper)));
                     }
                 }
                 time = sw.stop().getSeconds();
@@ -366,6 +317,27 @@ public class MapsforgeFragment extends Fragment implements View.OnClickListener 
         }.execute();
     }
 
+    private void writeSharedPreference(String key, String val) {
+        SharedPreferences sharedPref = getActivity().getPreferences(Context.MODE_PRIVATE);
+        SharedPreferences.Editor editor = sharedPref.edit();
+        editor.putString(key, val);
+        editor.commit();
+    }
+
+    private String readSharedPreferenceString(String key) {
+        SharedPreferences sharedPref = getActivity().getPreferences(Context.MODE_PRIVATE);
+        String defaultVal = "";
+        String val = sharedPref.getString(key, defaultVal);
+        return val;
+    }
+
+    private Boolean readSharedPreferenceBool(String key) {
+        SharedPreferences sharedPref = getActivity().getPreferences(Context.MODE_PRIVATE);
+        Boolean defaultVal = false;
+        Boolean val = sharedPref.getBoolean(key, defaultVal);
+        return val;
+    }
+
     public void getGPSLocation() {
         LocationManager locationManager = (LocationManager) super.getActivity().getSystemService(Context.LOCATION_SERVICE);
         LocationListener myLocationListener = new MyLocationListener();
@@ -375,88 +347,6 @@ public class MapsforgeFragment extends Fragment implements View.OnClickListener 
             logDisplayToUser(lastKnownLocation.toString());
         }
         locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0, 0, myLocationListener);
-    }
-
-    public class MyLocationListener implements LocationListener {
-
-        @Override
-        public void onLocationChanged(Location location) {
-            logDisplayToUser(location.toString());
-        }
-
-        @Override
-        public void onStatusChanged(String s, int i, Bundle bundle) {
-        }
-
-        @Override
-        public void onProviderEnabled(String s) {
-        }
-
-        @Override
-        public void onProviderDisabled(String s) {
-        }
-    }
-
-    // TODO evaluate moving to different class.
-    public Set<Bitmap> gatherRouteImages(PathWrapper pathWrapper) {
-        ImageGatherer imageGatherer = new ImageGatherer(mapView);
-        Set<Bitmap> bitmapArrayList = new HashSet<>();
-
-        LatLong[] points = new LatLong[pathWrapper.getPoints().size()];
-        for (int i = 0; i < pathWrapper.getPoints().size(); i++) {
-            points[i] = new LatLong(pathWrapper.getPoints().getLatitude(i), pathWrapper.getPoints().getLongitude(i));
-        }
-        bitmapArrayList = imageGatherer.captureMapTiles(points, tileCache);
-        return bitmapArrayList;
-    }
-
-    public double classifyComplexityMultiThreaded(Set<Bitmap> routeBitmaps) {
-        double nonComplexValue = 0;
-        double complexValue = 0;
-        ExecutorService executorService = Executors.newFixedThreadPool(2);
-        List<Future<List<Classifier.Recognition>>> list = new ArrayList<>();
-
-        for (Bitmap bitmap : routeBitmaps) {
-            Callable<List<Classifier.Recognition>> callable = new TensorFlowHandler(this.getActivity(), bitmap);
-            Future<List<Classifier.Recognition>> future = executorService.submit(callable);
-            list.add(future);
-        }
-        for (Future<List<Classifier.Recognition>> recognitionFuture : list) {
-            try {
-                for (Classifier.Recognition recognition : recognitionFuture.get()) {
-                    recognitionFuture.get();
-                    if (recognition.getTitle().equalsIgnoreCase("nonComplex")) {
-                        nonComplexValue += recognition.getConfidence();
-                    }
-                    if (recognition.getTitle().equalsIgnoreCase("complex")) {
-                        complexValue += recognition.getConfidence();
-                    }
-                }
-            } catch (InterruptedException | ExecutionException e) {
-                e.printStackTrace();
-            }
-        }
-        executorService.shutdown();
-        return complexValue - nonComplexValue;
-    }
-
-    public double classifyComplexity(Set<Bitmap> routeBitmaps) {
-        TensorFlowHandler tensorFlowHandler = new TensorFlowHandler();
-        tensorFlowHandler.createClassifier(this.getActivity());
-        double nonComplexValue = 0;
-        double complexValue = 0;
-        for (Bitmap bitmap : routeBitmaps) {
-            List<Classifier.Recognition> recognitions = tensorFlowHandler.classifyImage(bitmap);
-            for (Classifier.Recognition recognition : recognitions) {
-                if (recognition.getTitle().contentEquals("NonComplex")) {
-                    nonComplexValue += recognition.getConfidence();
-                }
-                if (recognition.getTitle().contentEquals("Complex")) {
-                    complexValue += recognition.getConfidence();
-                }
-            }
-        }
-        return complexValue - nonComplexValue;
     }
 
     private void loadGraphStorage() {
@@ -490,5 +380,58 @@ public class MapsforgeFragment extends Fragment implements View.OnClickListener 
     private void logDisplayToUser(String logText) {
         log(logText);
         Toast.makeText(this.getContext(), logText, Toast.LENGTH_LONG).show();
+    }
+
+    /**
+     *
+     */
+    public interface OnFragmentInteractionListener {
+        void onFragmentInteraction(Uri uri);
+    }
+
+    private class TappableMarker extends Marker {
+        public TappableMarker(int icon, LatLong localLatLong) {
+            super(localLatLong, AndroidGraphicFactory.convertToBitmap(MapsforgeFragment.this.getResources().getDrawable(icon)),
+                    AndroidGraphicFactory.convertToBitmap(MapsforgeFragment.this.getResources().getDrawable(icon)).getWidth() / 2,
+                    -1 * (AndroidGraphicFactory.convertToBitmap(MapsforgeFragment.this.getResources().getDrawable(icon)).getHeight()) / 2);
+        }
+
+        @Override
+        public boolean onTap(LatLong tapLatLong, Point layerXY, Point tapXY) {
+            double centerX = layerXY.x + getHorizontalOffset();
+            double centerY = layerXY.y + getVerticalOffset();
+
+            double radiusX = (getBitmap().getWidth() / 2) * 1.1;
+            double radiusY = (getBitmap().getHeight() / 2) * 1.1; // 10% margin on tap
+
+            double distX = Math.abs(centerX - tapXY.x);
+            double distY = Math.abs(centerY - tapXY.y);
+
+            if (distX < radiusX && distY < radiusY) {
+                Toast.makeText(mapView.getContext(), "Location: " + tapLatLong, Toast.LENGTH_LONG).show();
+                return true;
+            }
+            return false;
+        }
+    }
+
+    public class MyLocationListener implements LocationListener {
+
+        @Override
+        public void onLocationChanged(Location location) {
+            logDisplayToUser(location.toString());
+        }
+
+        @Override
+        public void onStatusChanged(String s, int i, Bundle bundle) {
+        }
+
+        @Override
+        public void onProviderEnabled(String s) {
+        }
+
+        @Override
+        public void onProviderDisabled(String s) {
+        }
     }
 }
