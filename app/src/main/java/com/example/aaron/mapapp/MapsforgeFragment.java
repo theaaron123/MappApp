@@ -53,6 +53,7 @@ import org.mapsforge.map.rendertheme.XmlRenderTheme;
 
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.lang.ref.WeakReference;
 import java.util.List;
 
 import static android.app.Activity.RESULT_OK;
@@ -72,7 +73,7 @@ public class MapsforgeFragment extends Fragment implements View.OnClickListener 
     private LatLong end;
     private File mapsDir;
     private File mapArea;
-    private volatile boolean shortestPathRunning = false;
+    private static volatile boolean shortestPathRunning = false;
     private float time = 0;
 
     // TODO move public and private methods into order and review access modifiers.
@@ -269,53 +270,82 @@ public class MapsforgeFragment extends Fragment implements View.OnClickListener 
     }
 
     private void calcPath(final double fromLat, final double fromLon,
-                         final double toLat, final double toLon) {
+                          final double toLat, final double toLon) {
 
         log("calculating route ...");
-        new AsyncTask<Void, Void, PathWrapper>() {
-            float time;
-
-            protected PathWrapper doInBackground(Void... v) {
-                StopWatch sw = new StopWatch().start();
-                GHRequest req = new GHRequest(fromLat, fromLon, toLat, toLon).setAlgorithm(Algorithms.ALT_ROUTE);
-                req.getHints().put(Routing.INSTRUCTIONS, "false");
-                req.getHints().put(Parameters.CH.DISABLE, "true");
-                req.getHints().put(Parameters.CH.INIT_DISABLING_ALLOWED, "true");
-
-                GHResponse resp = hopper.route(req);
-
-                if (readSharedPreferenceBool("EnhancedRouting") == true) {
-                    for (PathWrapper pathWrapper : resp.getAll()) {
-                        pathWrapper.setRouteWeight(pathWrapper.getRouteWeight() - RoutingHelper.classifyComplexity(MapsforgeFragment.this, RoutingHelper.gatherRouteImages(mapView, tileCache, pathWrapper)));
-                    }
-                }
-                time = sw.stop().getSeconds();
-                return resp.getBest();
-            }
-
-            protected void onPostExecute(PathWrapper resp) {
-                if (!resp.hasErrors()) {
-                    log("from:" + fromLat + "," + fromLon + " to:" + toLat + ","
-                            + toLon + " found route with distance:" + resp.getDistance()
-                            / 1000f + ", nodes:" + resp.getPoints().getSize() + ", time:"
-                            + time + " " + resp.getDebugInfo());
-                    logDisplayToUser("the route is " + (int) (resp.getDistance() / 160) / 10f
-                            + " miles long, walking time:" + resp.getTime() / 60000f
-                            + "min, calculation time:" + time + " seconds");
-                    LatLong[] points = new LatLong[resp.getPoints().size()];
-
-                    for (int i = 0; i < resp.getPoints().size(); i++) {
-                        points[i] = new LatLong(resp.getPoints().getLatitude(i), resp.getPoints().getLongitude(i));
-                    }
-
-                    drawPolyline(mapView.getLayerManager().getLayers(), points, Color.RED);
-                } else {
-                    logDisplayToUser("Error:" + resp.getErrors());
-                }
-                shortestPathRunning = false;
-            }
-        }.execute();
+        new CalculatePathTask(this, fromLat, fromLon, toLat, toLon, mapView, tileCache, hopper).execute();
     }
+
+    private static class CalculatePathTask extends AsyncTask<Void, Void, PathWrapper> {
+
+        float time;
+        double fromLat;
+        double fromLon;
+        double toLat;
+        double toLon;
+        private MapView mapView;
+        private TileCache tileCache;
+        private GraphHopper hopper;
+
+        private WeakReference<MapsforgeFragment> activityReference;
+
+        // only retain a weak reference to the activity
+        public CalculatePathTask(MapsforgeFragment context, double fromLat, double fromLon, double toLat, double toLon, MapView mapView, TileCache tileCache, GraphHopper hopper) {
+            activityReference = new WeakReference<>(context);
+            this.fromLat = fromLat;
+            this.fromLon = fromLon;
+            this.toLat = toLat;
+            this.toLon = toLon;
+            this.mapView = mapView;
+            this.tileCache = tileCache;
+            this.hopper = hopper;
+        }
+
+        protected PathWrapper doInBackground(Void... v) {
+            StopWatch sw = new StopWatch().start();
+            GHRequest req = new GHRequest(fromLat, fromLon, toLat, toLon).setAlgorithm(Algorithms.ALT_ROUTE);
+            req.getHints().put(Routing.INSTRUCTIONS, "false");
+            req.getHints().put(Parameters.CH.DISABLE, "true");
+            req.getHints().put(Parameters.CH.INIT_DISABLING_ALLOWED, "true");
+
+            GHResponse resp = hopper.route(req);
+
+            if (readSharedPreferenceBool("EnhancedRouting", activityReference.get())) {
+                for (PathWrapper pathWrapper : resp.getAll()) {
+                    pathWrapper.setRouteWeight(pathWrapper.getRouteWeight() - RoutingHelper.classifyComplexity(activityReference.get(), RoutingHelper.gatherRouteImages(mapView, tileCache, pathWrapper)));
+                }
+            }
+            time = sw.stop().getSeconds();
+            return resp.getBest();
+        }
+
+        protected void onPostExecute(PathWrapper resp) {
+            MapsforgeFragment activity = activityReference.get();
+            if (activity == null) {
+                return;
+            }
+            if (!resp.hasErrors()) {
+                activity.log("from:" + fromLat + "," + fromLon + " to:" + toLat + ","
+                        + toLon + " found route with distance:" + resp.getDistance()
+                        / 1000f + ", nodes:" + resp.getPoints().getSize() + ", time:"
+                        + time + " " + resp.getDebugInfo());
+                activity.logDisplayToUser("the route is " + (int) (resp.getDistance() / 160) / 10f
+                        + " miles long, walking time:" + resp.getTime() / 60000f
+                        + "min, calculation time:" + time + " seconds");
+                LatLong[] points = new LatLong[resp.getPoints().size()];
+
+                for (int i = 0; i < resp.getPoints().size(); i++) {
+                    points[i] = new LatLong(resp.getPoints().getLatitude(i), resp.getPoints().getLongitude(i));
+                }
+
+                activity.drawPolyline(activity.mapView.getLayerManager().getLayers(), points, Color.RED);
+            } else {
+                activity.logDisplayToUser("Error:" + resp.getErrors());
+            }
+            shortestPathRunning = false;
+        }
+    }
+
 
     private void writeSharedPreference(String key, String val) {
         SharedPreferences sharedPref = getActivity().getPreferences(Context.MODE_PRIVATE);
@@ -331,11 +361,10 @@ public class MapsforgeFragment extends Fragment implements View.OnClickListener 
         return val;
     }
 
-    private Boolean readSharedPreferenceBool(String key) {
-        SharedPreferences sharedPref = getActivity().getPreferences(Context.MODE_PRIVATE);
+    private static Boolean readSharedPreferenceBool(String key, MapsforgeFragment mapsforgeFragment) {
+        SharedPreferences sharedPref = mapsforgeFragment.getActivity().getPreferences(Context.MODE_PRIVATE);
         Boolean defaultVal = false;
-        Boolean val = sharedPref.getBoolean(key, defaultVal);
-        return val;
+        return sharedPref.getBoolean(key, defaultVal);
     }
 
     public void getGPSLocation() {
